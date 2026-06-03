@@ -1,0 +1,86 @@
+@import "@fontsource/vazirmatn/400.css";
+@import "@fontsource/vazirmatn/500.css";
+@import "@fontsource/vazirmatn/600.css";
+@import "@fontsource/vazirmatn/700.css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* CiXiS dark palette — acceptance requires a dark theme. */
+  --bg: #0f1115;
+  --surface: #171a21;
+  --surface-2: #1e222b;
+  --surface-3: #262b36;
+  --border: #2b313d;
+  --line: #2b313d;
+  --line-strong: #3a4250;
+  --text: #eef1f6;
+  --ink: #eef1f6;
+  --ink-2: #c2c9d6;
+  --ink-3: #8b94a5;
+  --muted: #8b94a5;
+  --accent: #e0a96d;   /* warm cafe amber */
+  --accent-2: #c98a4b;
+  --good: #4ade80;
+  --warn: #f5a524;
+  --bad: #f87171;
+  --brand: #e0a96d;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Vazirmatn", "Tahoma", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  direction: rtl;
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 font-semibold transition;
+  }
+  .btn-primary {
+    background: var(--accent);
+    color: #1b1206;
+  }
+  .btn-primary:hover {
+    background: var(--accent-2);
+  }
+  .btn-ghost {
+    background: var(--surface-2);
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+  .btn-ghost:hover {
+    background: var(--surface-3);
+  }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+  }
+}
+
+/* Slim dark scrollbars */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--surface-3);
+  border-radius: 99px;
+  border: 3px solid var(--bg);
+}

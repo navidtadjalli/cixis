@@ -1,0 +1,27 @@
+# --- project-local planning artifacts (not part of the app) ---
+.documents
+graphify-out
+claude-design
+
+# --- Python / Django ---
+backend/.venv/
+remote/.venv/
+__pycache__/
+*.py[cod]
+*.sqlite3
+backend/backups/
+backend/staticfiles/
+remote/staticfiles/
+.env
+
+# --- Node / Vite / Electron ---
+node_modules/
+frontend/dist/
+frontend/dist-electron/
+dist/
+*.log
+.vite/
+
+# --- OS / editor ---
+.DS_Store
+Thumbs.db
