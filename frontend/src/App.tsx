@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Sidebar, type Screen } from "./components/Sidebar";
 import { Titlebar } from "./components/Titlebar";
 import { Badge } from "./components/ui";
+import { EventScreen } from "./screens/EventScreen";
 import { OrderPanel } from "./screens/OrderPanel";
 import { TablesScreen } from "./screens/TablesScreen";
 
@@ -14,10 +15,12 @@ const screenTitles: Record<Screen, string> = {
 export default function App() {
   const [screen, setScreen] = useState<Screen>("tables");
   const [openOrderId, setOpenOrderId] = useState<number | null>(null);
+  const [eventMode, setEventMode] = useState(false);
 
   const handleScreenChange = (nextScreen: Screen) => {
     setScreen(nextScreen);
     setOpenOrderId(null);
+    setEventMode(false);
   };
 
   const handleOpenOrder = (orderId: number) => {
@@ -25,8 +28,14 @@ export default function App() {
   };
 
   const handleEventMode = () => {
-    console.log("event mode placeholder");
+    setEventMode(true);
   };
+
+  const handleBackToTables = () => {
+    setEventMode(false);
+  };
+
+  const title = eventMode && screen === "tables" ? "حالت رویداد" : screenTitles[screen];
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-bg text-text" dir="rtl">
@@ -39,7 +48,7 @@ export default function App() {
             <header className="flex flex-none items-center justify-between border-b border-border bg-surface-2 px-8 py-5">
               <div>
                 <h1 className="text-2xl font-extrabold text-text">
-                  {screenTitles[screen]}
+                  {title}
                 </h1>
                 <p className="mt-1 text-base text-muted">
                   پوسته اصلی صندوق فروش کافه
@@ -53,6 +62,11 @@ export default function App() {
                 <OrderPanel
                   orderId={openOrderId}
                   onClose={() => setOpenOrderId(null)}
+                />
+              ) : screen === "tables" && eventMode ? (
+                <EventScreen
+                  onOpenOrder={handleOpenOrder}
+                  onBack={handleBackToTables}
                 />
               ) : screen === "tables" ? (
                 <TablesScreen
