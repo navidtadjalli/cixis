@@ -26,8 +26,15 @@ def recalc_order_totals(order: Order) -> Order:
 
     Does not touch status for closed orders.
     """
-    subtotal = sum(item.line_total for item in order.items.all())
-    paid = sum(p.amount for p in order.payments.all())
+    # Query directly to bypass any stale prefetch cache on ``order``.
+    from .models import OrderItem, Payment
+
+    subtotal = sum(
+        OrderItem.objects.filter(order=order).values_list("line_total", flat=True)
+    )
+    paid = sum(
+        Payment.objects.filter(order=order).values_list("amount", flat=True)
+    )
     order.subtotal = subtotal
     order.paid_amount = paid
     order.remaining_amount = subtotal - paid

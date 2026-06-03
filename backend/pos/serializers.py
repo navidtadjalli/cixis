@@ -2,7 +2,73 @@
 from rest_framework import serializers
 
 from . import services
-from .models import Category, Product, Table
+from .models import Category, Order, OrderItem, Payment, Product, Table
+
+
+class OrderItemSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = OrderItem
+        fields = [
+            "id",
+            "order",
+            "product",
+            "product_name_snapshot",
+            "unit_price_snapshot",
+            "quantity",
+            "line_total",
+        ]
+        read_only_fields = [
+            "id",
+            "order",
+            "product_name_snapshot",
+            "unit_price_snapshot",
+            "line_total",
+        ]
+
+
+class PaymentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Payment
+        fields = ["id", "order", "amount", "method", "payer_label", "note", "created_at"]
+        read_only_fields = ["id", "order", "created_at"]
+
+
+class OrderSerializer(serializers.ModelSerializer):
+    items = OrderItemSerializer(many=True, read_only=True)
+    payments = PaymentSerializer(many=True, read_only=True)
+    table_id = serializers.IntegerField(source="table.id", read_only=True)
+    table_name = serializers.CharField(source="table.name", read_only=True, default=None)
+
+    class Meta:
+        model = Order
+        fields = [
+            "id",
+            "order_number",
+            "mode",
+            "table",
+            "table_id",
+            "table_name",
+            "event_customer_label",
+            "status",
+            "subtotal",
+            "paid_amount",
+            "remaining_amount",
+            "business_date",
+            "opened_at",
+            "closed_at",
+            "items",
+            "payments",
+        ]
+        read_only_fields = [
+            "id",
+            "order_number",
+            "subtotal",
+            "paid_amount",
+            "remaining_amount",
+            "business_date",
+            "opened_at",
+            "closed_at",
+        ]
 
 
 class CategorySerializer(serializers.ModelSerializer):
