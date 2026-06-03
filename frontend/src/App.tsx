@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Sidebar, type Screen } from "./components/Sidebar";
 import { Titlebar } from "./components/Titlebar";
 import { Badge } from "./components/ui";
+import { OrderPanel } from "./screens/OrderPanel";
 import { TablesScreen } from "./screens/TablesScreen";
 
 const screenTitles: Record<Screen, string> = {
@@ -12,9 +13,15 @@ const screenTitles: Record<Screen, string> = {
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>("tables");
+  const [openOrderId, setOpenOrderId] = useState<number | null>(null);
 
-  const handleOpenOrder = (orderId: number, tableId: number) => {
-    console.log("open order placeholder", { orderId, tableId });
+  const handleScreenChange = (nextScreen: Screen) => {
+    setScreen(nextScreen);
+    setOpenOrderId(null);
+  };
+
+  const handleOpenOrder = (orderId: number) => {
+    setOpenOrderId(orderId);
   };
 
   const handleEventMode = () => {
@@ -25,7 +32,7 @@ export default function App() {
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-bg text-text" dir="rtl">
       <Titlebar />
       <div className="flex min-h-0 flex-1 overflow-hidden">
-        <Sidebar active={screen} onChange={setScreen} />
+        <Sidebar active={screen} onChange={handleScreenChange} />
 
         <main className="min-w-0 flex-1 overflow-x-hidden bg-bg">
           <div className="flex min-h-full flex-col">
@@ -42,7 +49,12 @@ export default function App() {
             </header>
 
             <section className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-8">
-              {screen === "tables" ? (
+              {openOrderId !== null ? (
+                <OrderPanel
+                  orderId={openOrderId}
+                  onClose={() => setOpenOrderId(null)}
+                />
+              ) : screen === "tables" ? (
                 <TablesScreen
                   onOpenOrder={handleOpenOrder}
                   onEventMode={handleEventMode}
