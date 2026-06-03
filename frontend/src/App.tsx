@@ -3,6 +3,7 @@ import { Sidebar, type Screen } from "./components/Sidebar";
 import { Titlebar } from "./components/Titlebar";
 import { Badge } from "./components/ui";
 import { EventScreen } from "./screens/EventScreen";
+import { MenuScreen } from "./screens/MenuScreen";
 import { OrderPanel } from "./screens/OrderPanel";
 import { TablesScreen } from "./screens/TablesScreen";
 
@@ -73,6 +74,8 @@ export default function App() {
                   onOpenOrder={handleOpenOrder}
                   onEventMode={handleEventMode}
                 />
+              ) : screen === "menu" ? (
+                <MenuScreen />
               ) : (
                 <div className="rounded-2xl border border-border bg-surface p-8">
                   <h2 className="text-3xl font-black text-text">
