@@ -21,6 +21,15 @@ def business_today() -> date:
     return timezone.localdate()
 
 
+def is_date_closed(business_date) -> bool:
+    """True if a DayClosing already exists for the given business date."""
+    from .models import DayClosing
+
+    if business_date is None:
+        return False
+    return DayClosing.objects.filter(business_date=business_date).exists()
+
+
 def recalc_order_totals(order: Order) -> Order:
     """Recompute subtotal/paid/remaining from items + payments and update status.
 

@@ -79,6 +79,11 @@ class OrderViewSet(viewsets.ModelViewSet):
                 {"detail": "سفارش پرداخت‌شده/بسته‌شده قابل ویرایش نیست."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        if services.is_date_closed(order.business_date):
+            return Response(
+                {"detail": "روز این سفارش بسته شده و قابل ویرایش نیست."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         product = get_object_or_404(
             Product, pk=request.data.get("product_id") or request.data.get("product")
         )
@@ -115,6 +120,11 @@ class OrderItemViewSet(viewsets.ModelViewSet):
         if item.order.status in LOCKED_STATUSES:
             return Response(
                 {"detail": "سفارش پرداخت‌شده/بسته‌شده قابل ویرایش نیست."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if services.is_date_closed(item.order.business_date):
+            return Response(
+                {"detail": "روز این سفارش بسته شده و قابل ویرایش نیست."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         return None
