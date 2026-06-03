@@ -99,6 +99,12 @@ class OrderViewSet(viewsets.ModelViewSet):
             OrderItemSerializer(item).data, status=status.HTTP_201_CREATED
         )
 
+    @action(detail=True, methods=["post"], url_path="payments")
+    def add_payment(self, request, pk=None):
+        from .payments import create_payment
+
+        return create_payment(self.get_object(), request)
+
 
 class OrderItemViewSet(viewsets.ModelViewSet):
     serializer_class = OrderItemSerializer
