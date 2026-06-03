@@ -80,6 +80,44 @@ def sync_day_closing(dc: DayClosing):
         _mark_pending(dc, payload, str(exc))
 
 
+def retry_pending() -> dict:
+    """Re-attempt every pending/failed SyncRecord. Returns a small result summary."""
+    records = SyncRecord.objects.filter(
+        status__in=[SyncRecord.Status.PENDING, SyncRecord.Status.FAILED]
+    )
+    synced = failed = 0
+    for record in records:
+        record.attempt_count += 1
+        record.last_attempt_at = timezone.now()
+        try:
+            if record.sync_type == SyncRecord.SyncType.DAY_CLOSING:
+                resp = _post_day_closing(record.payload_snapshot)
+            else:
+                record.save(update_fields=["attempt_count", "last_attempt_at"])
+                continue
+            if 200 <= resp.status_code < 300:
+                record.status = SyncRecord.Status.SYNCED
+                record.error_message = None
+                record.save()
+                dc = DayClosing.objects.filter(id=record.local_object_id).first()
+                if dc:
+                    dc.sync_status = DayClosing.SyncStatus.SYNCED
+                    dc.synced_at = timezone.now()
+                    dc.save(update_fields=["sync_status", "synced_at", "updated_at"])
+                synced += 1
+            else:
+                record.status = SyncRecord.Status.FAILED
+                record.error_message = f"HTTP {resp.status_code}"
+                record.save()
+                failed += 1
+        except Exception as exc:
+            record.status = SyncRecord.Status.FAILED
+            record.error_message = str(exc)[:500]
+            record.save()
+            failed += 1
+    return {"synced": synced, "failed": failed, "total": synced + failed}
+
+
 def sync_day_closing_async(dc: DayClosing):
     """Kick off the sync attempt without blocking the close response.
 

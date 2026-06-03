@@ -2,7 +2,31 @@
 from rest_framework import serializers
 
 from . import services
-from .models import Category, Order, OrderItem, Payment, Product, Table
+from .models import (
+    Category,
+    Order,
+    OrderItem,
+    Payment,
+    Product,
+    ResourcePurchase,
+    Table,
+)
+
+
+class ResourcePurchaseSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ResourcePurchase
+        fields = [
+            "id",
+            "name",
+            "quantity",
+            "unit",
+            "cost",
+            "note",
+            "business_date",
+            "created_at",
+        ]
+        read_only_fields = ["id", "business_date", "created_at"]
 
 
 class OrderItemSerializer(serializers.ModelSerializer):
