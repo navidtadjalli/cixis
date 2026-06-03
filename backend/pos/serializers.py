@@ -2,7 +2,30 @@
 from rest_framework import serializers
 
 from . import services
-from .models import Table
+from .models import Category, Product, Table
+
+
+class CategorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Category
+        fields = ["id", "name", "sort_order", "is_active"]
+        read_only_fields = ["id", "is_active"]
+
+
+class ProductSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Product
+        fields = [
+            "id",
+            "category",
+            "name",
+            "description",
+            "price",
+            "is_available",
+            "is_active",
+            "sort_order",
+        ]
+        read_only_fields = ["id", "is_active"]
 
 
 class TableSerializer(serializers.ModelSerializer):
