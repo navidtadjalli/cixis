@@ -3,6 +3,7 @@
 Single-machine, offline-first. Runs on 127.0.0.1:8000 inside the Electron shell.
 No auth in v1 (single trusted cafe machine).
 """
+import os
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -60,7 +61,8 @@ WSGI_APPLICATION = "config.wsgi.application"
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "cixis.sqlite3",
+        # Overridable so isolated runs (e.g. the smoke test) use a throwaway DB.
+        "NAME": os.environ.get("CIXIS_DB_PATH", str(BASE_DIR / "cixis.sqlite3")),
     }
 }
 
