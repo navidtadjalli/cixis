@@ -23,10 +23,6 @@ type CreatedOrder = {
   id: number;
 };
 
-type ClosingPreview = {
-  total_sales: number;
-};
-
 type TablesScreenProps = {
   onOpenOrder: (orderId: number, tableId: number) => void;
   onEventMode: () => void;
@@ -59,7 +55,6 @@ function errorMessage(error: unknown) {
 
 export function TablesScreen({ onOpenOrder, onEventMode }: TablesScreenProps) {
   const [tables, setTables] = useState<Table[]>([]);
-  const [preview, setPreview] = useState<ClosingPreview | null>(null);
   const [dialog, setDialog] = useState<DialogState>(null);
   const [openMenuId, setOpenMenuId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -67,13 +62,7 @@ export function TablesScreen({ onOpenOrder, onEventMode }: TablesScreenProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const refresh = useCallback(async () => {
-    const [tableList, nextPreview] = await Promise.all([
-      apiGet<Table[]>("/tables/"),
-      apiGet<ClosingPreview>("/day-closing/preview/"),
-    ]);
-
-    setTables(tableList);
-    setPreview(nextPreview);
+    setTables(await apiGet<Table[]>("/tables/"));
   }, []);
 
   useEffect(() => {
@@ -81,14 +70,10 @@ export function TablesScreen({ onOpenOrder, onEventMode }: TablesScreenProps) {
 
     const load = async () => {
       try {
-        const [tableList, nextPreview] = await Promise.all([
-          apiGet<Table[]>("/tables/"),
-          apiGet<ClosingPreview>("/day-closing/preview/"),
-        ]);
+        const tableList = await apiGet<Table[]>("/tables/");
 
         if (!ignore) {
           setTables(tableList);
-          setPreview(nextPreview);
           setError(null);
         }
       } catch {
@@ -244,13 +229,6 @@ export function TablesScreen({ onOpenOrder, onEventMode }: TablesScreenProps) {
               <div className="text-sm font-semibold text-muted">خالی</div>
               <div className="mt-1 text-3xl font-black text-text">
                 {faNum(counts.empty)}
-              </div>
-            </div>
-            <div className="rounded-xl border border-border bg-surface px-5 py-4">
-              <div className="text-sm font-semibold text-muted">فروش امروز</div>
-              <div className="mt-1 inline-flex items-baseline gap-2 text-3xl font-black text-text">
-                <span>{money(preview?.total_sales ?? 0)}</span>
-                <span className="text-sm text-muted">{UNIT}</span>
               </div>
             </div>
           </div>
