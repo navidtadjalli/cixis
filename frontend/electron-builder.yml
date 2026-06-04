@@ -1,0 +1,42 @@
+appId: com.cixis.pos
+productName: CiXiS
+
+directories:
+  # Keep electron-builder artifacts out of Vite's dist/ output.
+  output: release
+
+files:
+  - package.json
+  - dist/**/*
+  - electron/**/*
+
+extraResources:
+  # Ships Django and its Python runtime with the app. On a real Windows build,
+  # ../backend/.venv must be a Windows venv so no separate Python install is needed.
+  - from: ../backend
+    to: backend
+    filter:
+      - "**/*"
+      - ".venv/**/*"
+      - "!**/__pycache__/**"
+      - "!**/*.py[cod]"
+      - "!**/db.sqlite3"
+      - "!**/*.sqlite3"
+      - "!**/*.sqlite3-*"
+      - "!**/backups/**"
+      - "!**/*.bak"
+      - "!**/*.backup"
+      - "!**/*.log"
+
+win:
+  target: nsis
+  # Drop build/icon.ico here and set win.icon when an app icon is available.
+
+nsis:
+  oneClick: true
+  perMachine: false
+  createStartMenuShortcut: true
+  createDesktopShortcut: true
+  allowToChangeInstallationDirectory: false
+  shortcutName: CiXiS
+  include: build/installer.nsh
