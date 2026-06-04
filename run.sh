@@ -9,6 +9,11 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# Some shells/dev setups export ELECTRON_RUN_AS_NODE=1, which makes the electron
+# binary run as plain Node — then require("electron") returns a path string and
+# ipcMain/app are undefined (crash at startup). Force it off for the GUI launch.
+unset ELECTRON_RUN_AS_NODE
+
 PY313="$(command -v python3.13 || true)"
 START_REMOTE=1
 [ "${1:-}" = "--no-remote" ] && START_REMOTE=0
@@ -17,7 +22,8 @@ START_REMOTE=1
 # previous run that was hard-killed, e.g. Ctrl-C leaving Django behind).
 free_port() {
   local port="$1" pids
-  pids="$(ss -ltnpH "sport = :$port" 2>/dev/null | grep -oP 'pid=\K[0-9]+' | sort -u)"
+  # `|| true` so a no-match grep doesn't trip `set -e`/pipefail when the port is free.
+  pids="$(ss -ltnpH "sport = :$port" 2>/dev/null | grep -oP 'pid=\K[0-9]+' | sort -u || true)"
   if [ -n "$pids" ]; then
     echo "[ports] freeing :$port (killing $pids)"
     kill $pids 2>/dev/null || true

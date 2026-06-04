@@ -10,7 +10,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "electron:dev": "concurrently -k \"vite\" \"wait-on tcp:5173 && cross-env ELECTRON_DEV=1 electron .\"",
+    "electron:dev": "concurrently -k \"vite\" \"wait-on tcp:5173 && cross-env ELECTRON_RUN_AS_NODE= ELECTRON_DEV=1 electron .\"",
     "electron:build": "tsc -b && vite build && electron-builder --config electron-builder.yml"
   },
   "dependencies": {
