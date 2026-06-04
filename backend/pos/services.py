@@ -8,11 +8,11 @@ from .models import Order, Payment
 
 # Order statuses that keep a table "busy" / block its deletion.
 BLOCKING_STATUSES = (Order.Status.OPEN, Order.Status.PARTIALLY_PAID)
-# Statuses where the order is still the table's "active" (not yet closed) order.
+# Statuses where the order is still the table's "active" order. A fully PAID order
+# is settled: the table frees up so the next customers get a fresh order.
 ACTIVE_STATUSES = (
     Order.Status.OPEN,
     Order.Status.PARTIALLY_PAID,
-    Order.Status.PAID,
 )
 
 

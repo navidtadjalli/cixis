@@ -7,9 +7,8 @@ import {
   type ReactNode,
 } from "react";
 import { ApiError, apiGet, apiPost } from "../lib/api";
-import { faNum, UNIT } from "../lib/format";
+import { faNum, money, UNIT } from "../lib/format";
 import { Badge, Button, Modal } from "../components/ui";
-import { RevenueValue } from "../components/RevenueValue";
 
 type ResourceSuggestion = {
   resource_name: string;
@@ -200,7 +199,7 @@ function RevenueWithUnit({
 }) {
   return (
     <span className={["inline-flex items-baseline gap-2", className].join(" ")}>
-      <RevenueValue value={value} />
+      <span>{money(value ?? 0)}</span>
       <span className="text-sm text-muted">{UNIT}</span>
     </span>
   );

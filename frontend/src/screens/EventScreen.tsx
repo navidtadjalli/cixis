@@ -1,8 +1,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { apiGet, apiPost } from "../lib/api";
-import { faNum, UNIT } from "../lib/format";
+import { faNum, money, UNIT } from "../lib/format";
 import { Badge, Button } from "../components/ui";
-import { RevenueValue } from "../components/RevenueValue";
 
 type EventOrderStatus = "open" | "partially_paid" | "paid" | "closed";
 
@@ -202,7 +201,7 @@ export function EventScreen({ onOpenOrder, onBack }: EventScreenProps) {
                     </div>
                   </div>
                   <span className="inline-flex items-baseline gap-2 text-xl font-black text-text">
-                    <RevenueValue value={order.subtotal} />
+                    <span>{money(order.subtotal)}</span>
                     <span className="text-sm text-muted">{UNIT}</span>
                   </span>
                   <Badge tone={meta.tone}>{meta.label}</Badge>

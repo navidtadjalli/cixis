@@ -8,6 +8,7 @@ import { MenuScreen } from "./screens/MenuScreen";
 import { OrderPanel } from "./screens/OrderPanel";
 import { TablesScreen } from "./screens/TablesScreen";
 import { useRevenue } from "./context/RevenueContext";
+import { DayClosingGate } from "./components/DayClosingGate";
 
 const screenTitles: Record<Screen, string> = {
   tables: "میزها",
@@ -16,7 +17,7 @@ const screenTitles: Record<Screen, string> = {
 };
 
 export default function App() {
-  const { lock } = useRevenue();
+  const { lock, unlocked } = useRevenue();
   const [screen, setScreen] = useState<Screen>("tables");
   const [openOrderId, setOpenOrderId] = useState<number | null>(null);
   const [eventMode, setEventMode] = useState(false);
@@ -81,7 +82,7 @@ export default function App() {
               ) : screen === "menu" ? (
                 <MenuScreen />
               ) : screen === "closing" ? (
-                <DayClosingScreen />
+                unlocked ? <DayClosingScreen /> : <DayClosingGate />
               ) : (
                 <div className="rounded-2xl border border-border bg-surface p-8">
                   <h2 className="text-3xl font-black text-text">

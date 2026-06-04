@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ApiError, apiDelete, apiGet, apiPatch, apiPost } from "../lib/api";
-import { faNum, UNIT } from "../lib/format";
+import { faNum, money, UNIT } from "../lib/format";
 import { Badge, Button, Modal } from "../components/ui";
-import { RevenueValue } from "../components/RevenueValue";
 
 type TableStatus =
   | "empty"
@@ -250,7 +249,7 @@ export function TablesScreen({ onOpenOrder, onEventMode }: TablesScreenProps) {
             <div className="rounded-xl border border-border bg-surface px-5 py-4">
               <div className="text-sm font-semibold text-muted">فروش امروز</div>
               <div className="mt-1 inline-flex items-baseline gap-2 text-3xl font-black text-text">
-                <RevenueValue value={preview?.total_sales} />
+                <span>{money(preview?.total_sales ?? 0)}</span>
                 <span className="text-sm text-muted">{UNIT}</span>
               </div>
             </div>
@@ -366,7 +365,7 @@ export function TablesScreen({ onOpenOrder, onEventMode }: TablesScreenProps) {
                   <div className="absolute inset-x-5 bottom-5 flex items-end justify-between gap-3 border-t border-border pt-4">
                     <span className="text-sm font-semibold text-muted">مبلغ سفارش</span>
                     <span className="inline-flex items-baseline gap-2 text-2xl font-black text-text">
-                      <RevenueValue value={table.active_order_total} />
+                      <span>{money(table.active_order_total ?? 0)}</span>
                       <span className="text-sm text-muted">{UNIT}</span>
                     </span>
                   </div>
