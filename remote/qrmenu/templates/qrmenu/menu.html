@@ -52,14 +52,6 @@
       line-height: 1.25;
     }
 
-    .slug {
-      margin-top: 6px;
-      color: var(--muted);
-      direction: ltr;
-      text-align: right;
-      font-size: 0.95rem;
-    }
-
     .empty {
       margin-top: 28px;
       padding: 22px;
@@ -199,8 +191,7 @@
 <body>
   <main>
     <header>
-      <h1>{{ cafe_name }}</h1>
-      <p class="slug">{{ cafe_slug }}</p>
+      <h1>کافه {{ cafe_name }}</h1>
     </header>
 
     {% if not has_snapshot %}
