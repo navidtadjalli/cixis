@@ -70,8 +70,52 @@
       text-align: center;
     }
 
+    .tabs {
+      position: sticky;
+      top: 0;
+      z-index: 5;
+      display: flex;
+      gap: 8px;
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      padding: 14px 0;
+      margin-bottom: 6px;
+      background: var(--bg);
+      border-bottom: 1px solid var(--line);
+      scrollbar-width: none;
+    }
+
+    .tabs::-webkit-scrollbar {
+      display: none;
+    }
+
+    .tab {
+      flex: 0 0 auto;
+      padding: 8px 16px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--panel);
+      color: var(--muted);
+      font-family: inherit;
+      font-size: 0.95rem;
+      font-weight: 700;
+      white-space: nowrap;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+    }
+
+    .tab.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #1b1206;
+    }
+
     .category {
-      padding: 24px 0 6px;
+      padding: 8px 0 6px;
+    }
+
+    .category[hidden] {
+      display: none;
     }
 
     .category h2 {
@@ -164,36 +208,63 @@
         <p>منو هنوز منتشر نشده است.</p>
       </section>
     {% else %}
-      {% for category in categories %}
-        <section class="category">
-          <h2>{{ category.name }}</h2>
-          <div class="items">
-            {% for product in category.products %}
-              <article class="item {% if product.is_available == False %}unavailable{% endif %}">
-                <div>
-                  <p class="name">{{ product.name }}</p>
-                  {% if product.description %}
-                    <p class="description">{{ product.description }}</p>
-                  {% endif %}
-                  {% if product.is_available == False %}
-                    <span class="tag">ناموجود</span>
-                  {% endif %}
-                </div>
-                <div class="price">{{ product.price|floatformat:"0" }} هزار تومان</div>
-              </article>
-            {% empty %}
-              <article class="item">
-                <p class="description">محصولی در این دسته ثبت نشده است.</p>
-              </article>
-            {% endfor %}
-          </div>
-        </section>
-      {% empty %}
+      {% if categories %}
+        <nav class="tabs" role="tablist">
+          {% for category in categories %}
+            <button type="button" class="tab {% if forloop.first %}active{% endif %}"
+                    role="tab" data-target="cat-{{ forloop.counter }}">
+              {{ category.name }}
+            </button>
+          {% endfor %}
+        </nav>
+
+        {% for category in categories %}
+          <section class="category" id="cat-{{ forloop.counter }}" {% if not forloop.first %}hidden{% endif %}>
+            <h2>{{ category.name }}</h2>
+            <div class="items">
+              {% for product in category.products %}
+                <article class="item {% if product.is_available == False %}unavailable{% endif %}">
+                  <div>
+                    <p class="name">{{ product.name }}</p>
+                    {% if product.description %}
+                      <p class="description">{{ product.description }}</p>
+                    {% endif %}
+                    {% if product.is_available == False %}
+                      <span class="tag">ناموجود</span>
+                    {% endif %}
+                  </div>
+                  <div class="price">{{ product.price|floatformat:"0" }} هزار تومان</div>
+                </article>
+              {% empty %}
+                <article class="item">
+                  <p class="description">محصولی در این دسته ثبت نشده است.</p>
+                </article>
+              {% endfor %}
+            </div>
+          </section>
+        {% endfor %}
+      {% else %}
         <section class="empty">
           <p>برای این منو هنوز دسته‌بندی ثبت نشده است.</p>
         </section>
-      {% endfor %}
+      {% endif %}
     {% endif %}
   </main>
+
+  <script>
+    (function () {
+      var tabs = document.querySelectorAll(".tab");
+      var panels = document.querySelectorAll(".category");
+      tabs.forEach(function (tab) {
+        tab.addEventListener("click", function () {
+          tabs.forEach(function (t) { t.classList.remove("active"); });
+          panels.forEach(function (p) { p.hidden = true; });
+          tab.classList.add("active");
+          var target = document.getElementById(tab.dataset.target);
+          if (target) { target.hidden = false; }
+        });
+      });
+    })();
+  </script>
 </body>
 </html>
