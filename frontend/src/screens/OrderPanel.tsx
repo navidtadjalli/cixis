@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ApiError, apiDelete, apiGet, apiPatch, apiPost } from "../lib/api";
 import { faNum, money, UNIT } from "../lib/format";
-import { Badge, Button } from "../components/ui";
+import { Badge, Button, Modal } from "../components/ui";
 
 type OrderStatus = "open" | "partially_paid" | "paid" | "closed";
 type PaymentMethod = "cash" | "card" | "bank_transfer";
@@ -102,6 +102,11 @@ export function OrderPanel({ orderId, onClose }: OrderPanelProps) {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
   const [paymentAmount, setPaymentAmount] = useState("");
   const [payerLabel, setPayerLabel] = useState("");
+  // Item-based split payment: pick how many of each item this customer pays for.
+  const [splitOpen, setSplitOpen] = useState(false);
+  const [splitCounts, setSplitCounts] = useState<Record<number, number>>({});
+  const [splitMethod, setSplitMethod] = useState<PaymentMethod>("cash");
+  const [splitPayer, setSplitPayer] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isProductsLoading, setIsProductsLoading] = useState(false);
@@ -135,6 +140,20 @@ export function OrderPanel({ orderId, onClose }: OrderPanelProps) {
     paymentAmount.trim() !== "" &&
     Number.isFinite(parsedPaymentAmount) &&
     parsedPaymentAmount > 0;
+
+  // Sum of the selected items in the split modal.
+  const splitTotal = useMemo(
+    () =>
+      sortedItems.reduce(
+        (sum, item) => sum + (splitCounts[item.id] ?? 0) * item.unit_price_snapshot,
+        0,
+      ),
+    [sortedItems, splitCounts],
+  );
+  const remaining = order?.remaining_amount ?? 0;
+  const overRemaining = splitTotal > remaining;
+  const canSubmitSplit =
+    !isLocked && !isSubmitting && splitTotal > 0 && !overRemaining;
 
   const refreshOrder = useCallback(async () => {
     const nextOrder = await apiGet<Order>(`/orders/${orderId}/`);
@@ -286,6 +305,36 @@ export function OrderPanel({ orderId, onClose }: OrderPanelProps) {
       });
       setPaymentAmount("");
       setPayerLabel("");
+    });
+  };
+
+  const openSplit = () => {
+    setSplitCounts({});
+    setSplitPayer("");
+    setSplitMethod("cash");
+    setSplitOpen(true);
+  };
+
+  // Clamp a per-item count to [0, the item's quantity].
+  const setSplitCount = (itemId: number, value: number, max: number) => {
+    const clamped = Math.max(0, Math.min(max, value));
+    setSplitCounts((prev) => ({ ...prev, [itemId]: clamped }));
+  };
+
+  const submitSplitPayment = () => {
+    if (!canSubmitSplit) {
+      return;
+    }
+    const trimmed = splitPayer.trim();
+    void runMutation(async () => {
+      await apiPost<Payment>(`/orders/${orderId}/payments/`, {
+        amount: splitTotal,
+        method: splitMethod,
+        ...(trimmed ? { payer_label: trimmed } : {}),
+      });
+      setSplitOpen(false);
+      setSplitCounts({});
+      setSplitPayer("");
     });
   };
 
@@ -552,10 +601,136 @@ export function OrderPanel({ orderId, onClose }: OrderPanelProps) {
                 <Button className="w-full" onClick={addPayment} disabled={!canSubmitPayment}>
                   افزودن پرداخت
                 </Button>
+                <Button
+                  variant="ghost"
+                  className="w-full"
+                  onClick={openSplit}
+                  disabled={isLocked || isSubmitting || sortedItems.length === 0}
+                >
+                  پرداخت تفکیکی (انتخاب اقلام)
+                </Button>
               </div>
             </div>
           </aside>
         </div>
+      )}
+
+      {splitOpen && order && (
+        <Modal onClose={() => setSplitOpen(false)} widthClassName="max-w-xl">
+          <div className="flex items-center justify-between gap-3">
+            <h3 className="text-xl font-black text-text">پرداخت تفکیکی</h3>
+            <span className="text-sm text-muted">
+              مانده: {formatMoney(order.remaining_amount)}
+            </span>
+          </div>
+          <p className="mt-1 text-sm text-muted">
+            اقلامی که این مشتری پرداخت می‌کند و تعداد آن‌ها را انتخاب کنید.
+          </p>
+
+          <div className="mt-4 max-h-[46vh] space-y-2 overflow-y-auto pe-1">
+            {sortedItems.map((item) => {
+              const count = splitCounts[item.id] ?? 0;
+              const wouldExceed =
+                splitTotal + item.unit_price_snapshot > order.remaining_amount;
+              return (
+                <div
+                  key={item.id}
+                  className="flex items-center justify-between gap-3 rounded-xl border border-border bg-surface-2 px-4 py-3"
+                >
+                  <div className="min-w-0">
+                    <div className="truncate font-bold text-text">
+                      {item.product_name_snapshot}
+                    </div>
+                    <div className="text-xs text-muted">
+                      {formatMoney(item.unit_price_snapshot)} · از {faNum(item.quantity)}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1 rounded-lg border border-border bg-surface px-1">
+                      <button
+                        type="button"
+                        className="h-8 w-8 text-lg font-black text-muted transition hover:text-bad disabled:opacity-40"
+                        disabled={count <= 0}
+                        onClick={() => setSplitCount(item.id, count - 1, item.quantity)}
+                      >
+                        −
+                      </button>
+                      <span className="w-7 text-center font-black text-text">
+                        {faNum(count)}
+                      </span>
+                      <button
+                        type="button"
+                        className="h-8 w-8 text-lg font-black text-muted transition hover:text-accent disabled:opacity-40"
+                        disabled={count >= item.quantity || wouldExceed}
+                        onClick={() => setSplitCount(item.id, count + 1, item.quantity)}
+                      >
+                        +
+                      </button>
+                    </div>
+                    <span className="w-24 text-left text-sm font-bold text-text">
+                      {money(count * item.unit_price_snapshot)}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="mt-4 flex items-center justify-between gap-3 border-t border-border pt-3 text-lg font-black text-text">
+            <span>جمع انتخاب‌شده</span>
+            <span className="inline-flex items-baseline gap-2">
+              <span>{money(splitTotal)}</span>
+              <span className="text-sm text-muted">{UNIT}</span>
+            </span>
+          </div>
+          {overRemaining && (
+            <div className="mt-1 text-sm font-semibold text-bad">
+              مبلغ انتخاب‌شده از مانده سفارش بیشتر است.
+            </div>
+          )}
+
+          <div className="mt-4 grid grid-cols-3 gap-2">
+            {paymentMethods.map((method) => (
+              <button
+                key={method.value}
+                type="button"
+                className={[
+                  "h-10 rounded-xl border text-xs font-black transition",
+                  splitMethod === method.value
+                    ? "border-accent bg-accent text-[#1b1206]"
+                    : "border-border bg-surface-2 text-muted hover:bg-[var(--surface-3)] hover:text-text",
+                ].join(" ")}
+                onClick={() => setSplitMethod(method.value)}
+              >
+                {method.label}
+              </button>
+            ))}
+          </div>
+
+          <input
+            className="mt-3 h-11 w-full rounded-xl border border-border bg-surface-2 px-4 text-sm font-semibold text-text outline-none transition focus:border-accent"
+            placeholder="نام پرداخت‌کننده (اختیاری)"
+            value={splitPayer}
+            onChange={(event) => setSplitPayer(event.target.value)}
+          />
+
+          <div className="mt-4 flex gap-2">
+            <Button
+              variant="ghost"
+              className="flex-1"
+              onClick={() => setSplitOpen(false)}
+            >
+              انصراف
+            </Button>
+            <Button
+              className="flex-1"
+              onClick={submitSplitPayment}
+              disabled={!canSubmitSplit}
+            >
+              ثبت پرداخت
+            </Button>
+          </div>
+        </Modal>
       )}
     </div>
   );
