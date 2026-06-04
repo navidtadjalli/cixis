@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>منوی {{ cafe_name }}</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #111316;
+      --panel: #1b1f24;
+      --panel-soft: #232931;
+      --text: #f6f2ea;
+      --muted: #b8b0a3;
+      --line: #343a42;
+      --accent: #d9a441;
+      --danger: #d36b6b;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Tahoma, Arial, sans-serif;
+      line-height: 1.7;
+    }
+
+    main {
+      width: min(720px, 100%);
+      margin: 0 auto;
+      padding: 28px 16px 44px;
+    }
+
+    header {
+      padding: 8px 0 24px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    h1,
+    h2,
+    p {
+      margin: 0;
+    }
+
+    h1 {
+      font-size: clamp(1.7rem, 7vw, 2.6rem);
+      line-height: 1.25;
+    }
+
+    .slug {
+      margin-top: 6px;
+      color: var(--muted);
+      direction: ltr;
+      text-align: right;
+      font-size: 0.95rem;
+    }
+
+    .empty {
+      margin-top: 28px;
+      padding: 22px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      color: var(--muted);
+      text-align: center;
+    }
+
+    .category {
+      padding: 24px 0 6px;
+    }
+
+    .category h2 {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 1.2rem;
+      color: var(--accent);
+    }
+
+    .category h2::after {
+      content: "";
+      height: 1px;
+      flex: 1;
+      background: var(--line);
+    }
+
+    .items {
+      display: grid;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .item {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 12px;
+      align-items: start;
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+    }
+
+    .item.unavailable {
+      opacity: 0.55;
+    }
+
+    .item.unavailable .name {
+      text-decoration: line-through;
+    }
+
+    .name {
+      font-weight: 700;
+      font-size: 1rem;
+    }
+
+    .description {
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+
+    .price {
+      white-space: nowrap;
+      color: var(--text);
+      font-weight: 700;
+    }
+
+    .tag {
+      display: inline-block;
+      margin-top: 6px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: rgba(211, 107, 107, 0.16);
+      color: var(--danger);
+      font-size: 0.82rem;
+    }
+
+    @media (max-width: 420px) {
+      .item {
+        grid-template-columns: 1fr;
+      }
+
+      .price {
+        justify-self: start;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>{{ cafe_name }}</h1>
+      <p class="slug">{{ cafe_slug }}</p>
+    </header>
+
+    {% if not has_snapshot %}
+      <section class="empty">
+        <p>منو هنوز منتشر نشده است.</p>
+      </section>
+    {% else %}
+      {% for category in categories %}
+        <section class="category">
+          <h2>{{ category.name }}</h2>
+          <div class="items">
+            {% for product in category.products %}
+              <article class="item {% if product.is_available == False %}unavailable{% endif %}">
+                <div>
+                  <p class="name">{{ product.name }}</p>
+                  {% if product.description %}
+                    <p class="description">{{ product.description }}</p>
+                  {% endif %}
+                  {% if product.is_available == False %}
+                    <span class="tag">ناموجود</span>
+                  {% endif %}
+                </div>
+                <div class="price">{{ product.price|floatformat:"0" }} هزار تومان</div>
+              </article>
+            {% empty %}
+              <article class="item">
+                <p class="description">محصولی در این دسته ثبت نشده است.</p>
+              </article>
+            {% endfor %}
+          </div>
+        </section>
+      {% empty %}
+        <section class="empty">
+          <p>برای این منو هنوز دسته‌بندی ثبت نشده است.</p>
+        </section>
+      {% endfor %}
+    {% endif %}
+  </main>
+</body>
+</html>
