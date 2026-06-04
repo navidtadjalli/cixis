@@ -9,6 +9,7 @@ import {
 import { ApiError, apiGet, apiPost } from "../lib/api";
 import { faNum, UNIT } from "../lib/format";
 import { Badge, Button, Modal } from "../components/ui";
+import { RevenueValue } from "../components/RevenueValue";
 
 type ResourceSuggestion = {
   resource_name: string;
@@ -113,17 +114,6 @@ const syncMeta: Partial<
   failed: { label: "ناموفق", tone: "bad" },
 };
 
-function RevenueMasked({ className = "" }: { className?: string }) {
-  return (
-    <span className={["inline-flex items-baseline gap-2", className].join(" ")}>
-      <span className="tracking-[0.18em]" aria-label="محرمانه">
-        ••••
-      </span>
-      <span className="text-sm text-muted">{UNIT}</span>
-    </span>
-  );
-}
-
 function todayLocalDate() {
   const now = new Date();
   const local = new Date(now.getTime() - now.getTimezoneOffset() * 60_000);
@@ -198,6 +188,21 @@ function StatCard({
       <div className="mt-2 text-3xl font-black text-text">{children}</div>
       {sub && <div className="mt-2 text-sm font-semibold text-muted">{sub}</div>}
     </div>
+  );
+}
+
+function RevenueWithUnit({
+  value,
+  className = "",
+}: {
+  value: number | null | undefined;
+  className?: string;
+}) {
+  return (
+    <span className={["inline-flex items-baseline gap-2", className].join(" ")}>
+      <RevenueValue value={value} />
+      <span className="text-sm text-muted">{UNIT}</span>
+    </span>
   );
 }
 
@@ -420,16 +425,16 @@ export function DayClosingScreen() {
 
               <div className="mt-5 grid grid-cols-[repeat(auto-fit,minmax(12rem,1fr))] gap-4">
                 <StatCard label="فروش کل">
-                  <RevenueMasked />
+                  <RevenueWithUnit value={preview?.total_sales} />
                 </StatCard>
                 <StatCard label="نقدی">
-                  <RevenueMasked />
+                  <RevenueWithUnit value={preview?.cash_total} />
                 </StatCard>
                 <StatCard label="کارت">
-                  <RevenueMasked />
+                  <RevenueWithUnit value={preview?.card_total} />
                 </StatCard>
                 <StatCard label="انتقال بانکی">
-                  <RevenueMasked />
+                  <RevenueWithUnit value={preview?.bank_transfer_total} />
                 </StatCard>
                 <StatCard label="کل سفارش‌ها">
                   {faNum(preview?.orders_count ?? 0)}
@@ -464,7 +469,10 @@ export function DayClosingScreen() {
                             {order.table_name ?? "بدون میز"} · {order.status}
                           </div>
                         </div>
-                        <RevenueMasked className="text-lg font-black text-warn" />
+                        <RevenueWithUnit
+                          value={order.remaining_amount}
+                          className="text-lg font-black text-warn"
+                        />
                       </div>
                     ))}
                   </div>
@@ -562,7 +570,10 @@ export function DayClosingScreen() {
                             {faNum(purchase.quantity)} {purchase.unit}
                           </div>
                         </div>
-                        <RevenueMasked className="text-lg font-black text-text" />
+                        <RevenueWithUnit
+                          value={purchase.cost}
+                          className="text-lg font-black text-text"
+                        />
                       </div>
                     ))
                   )}
@@ -647,19 +658,19 @@ export function DayClosingScreen() {
 
               <div className="mt-5 grid grid-cols-[repeat(auto-fit,minmax(12rem,1fr))] gap-4">
                 <StatCard label="فروش ماه">
-                  <RevenueMasked />
+                  <RevenueWithUnit value={monthlyReport?.total_sales} />
                 </StatCard>
                 <StatCard label="نقدی">
-                  <RevenueMasked />
+                  <RevenueWithUnit value={monthlyReport?.cash_total} />
                 </StatCard>
                 <StatCard label="کارت">
-                  <RevenueMasked />
+                  <RevenueWithUnit value={monthlyReport?.card_total} />
                 </StatCard>
                 <StatCard label="انتقال بانکی">
-                  <RevenueMasked />
+                  <RevenueWithUnit value={monthlyReport?.bank_transfer_total} />
                 </StatCard>
                 <StatCard label="خرید ماه">
-                  <RevenueMasked />
+                  <RevenueWithUnit value={monthlyReport?.purchases_total} />
                 </StatCard>
                 <StatCard label="روز کاری">
                   {faNum(monthlyReport?.days_count ?? 0)}
@@ -689,7 +700,10 @@ export function DayClosingScreen() {
                       >
                         <div className="text-text">{faNum(day.business_date)}</div>
                         <div className="text-muted">{faNum(day.orders_count)}</div>
-                        <RevenueMasked className="justify-end text-left font-black text-text" />
+                        <RevenueWithUnit
+                          value={day.total_sales}
+                          className="justify-end text-left font-black text-text"
+                        />
                       </div>
                     ))
                   )}

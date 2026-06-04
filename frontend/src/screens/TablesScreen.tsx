@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ApiError, apiDelete, apiGet, apiPatch, apiPost } from "../lib/api";
 import { faNum, UNIT } from "../lib/format";
 import { Badge, Button, Modal } from "../components/ui";
+import { RevenueValue } from "../components/RevenueValue";
 
 type TableStatus =
   | "empty"
@@ -21,6 +22,10 @@ type Table = {
 
 type CreatedOrder = {
   id: number;
+};
+
+type ClosingPreview = {
+  total_sales: number;
 };
 
 type TablesScreenProps = {
@@ -45,17 +50,6 @@ const statusMeta: Record<
   needs_attention: { label: "نیازمند بررسی", tone: "bad" },
 };
 
-function RevenueMasked({ className = "" }: { className?: string }) {
-  return (
-    <span className={["inline-flex items-baseline gap-2", className].join(" ")}>
-      <span className="tracking-[0.18em]" aria-label="محرمانه">
-        ••••
-      </span>
-      <span className="text-sm text-muted">{UNIT}</span>
-    </span>
-  );
-}
-
 function errorMessage(error: unknown) {
   if (error instanceof ApiError && error.status === 409) {
     return "میز دارای سفارش باز است";
@@ -66,6 +60,7 @@ function errorMessage(error: unknown) {
 
 export function TablesScreen({ onOpenOrder, onEventMode }: TablesScreenProps) {
   const [tables, setTables] = useState<Table[]>([]);
+  const [preview, setPreview] = useState<ClosingPreview | null>(null);
   const [dialog, setDialog] = useState<DialogState>(null);
   const [openMenuId, setOpenMenuId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -73,12 +68,13 @@ export function TablesScreen({ onOpenOrder, onEventMode }: TablesScreenProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const refresh = useCallback(async () => {
-    const [tableList] = await Promise.all([
+    const [tableList, nextPreview] = await Promise.all([
       apiGet<Table[]>("/tables/"),
-      apiGet<unknown>("/day-closing/preview/"),
+      apiGet<ClosingPreview>("/day-closing/preview/"),
     ]);
 
     setTables(tableList);
+    setPreview(nextPreview);
   }, []);
 
   useEffect(() => {
@@ -86,13 +82,14 @@ export function TablesScreen({ onOpenOrder, onEventMode }: TablesScreenProps) {
 
     const load = async () => {
       try {
-        const [tableList] = await Promise.all([
+        const [tableList, nextPreview] = await Promise.all([
           apiGet<Table[]>("/tables/"),
-          apiGet<unknown>("/day-closing/preview/"),
+          apiGet<ClosingPreview>("/day-closing/preview/"),
         ]);
 
         if (!ignore) {
           setTables(tableList);
+          setPreview(nextPreview);
           setError(null);
         }
       } catch {
@@ -252,7 +249,10 @@ export function TablesScreen({ onOpenOrder, onEventMode }: TablesScreenProps) {
             </div>
             <div className="rounded-xl border border-border bg-surface px-5 py-4">
               <div className="text-sm font-semibold text-muted">فروش امروز</div>
-              <RevenueMasked className="mt-1 text-3xl font-black text-text" />
+              <div className="mt-1 inline-flex items-baseline gap-2 text-3xl font-black text-text">
+                <RevenueValue value={preview?.total_sales} />
+                <span className="text-sm text-muted">{UNIT}</span>
+              </div>
             </div>
           </div>
 
@@ -365,7 +365,10 @@ export function TablesScreen({ onOpenOrder, onEventMode }: TablesScreenProps) {
 
                   <div className="absolute inset-x-5 bottom-5 flex items-end justify-between gap-3 border-t border-border pt-4">
                     <span className="text-sm font-semibold text-muted">مبلغ سفارش</span>
-                    <RevenueMasked className="text-2xl font-black text-text" />
+                    <span className="inline-flex items-baseline gap-2 text-2xl font-black text-text">
+                      <RevenueValue value={table.active_order_total} />
+                      <span className="text-sm text-muted">{UNIT}</span>
+                    </span>
                   </div>
                 </div>
               );

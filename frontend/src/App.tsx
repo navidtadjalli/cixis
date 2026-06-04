@@ -7,6 +7,7 @@ import { DayClosingScreen } from "./screens/DayClosingScreen";
 import { MenuScreen } from "./screens/MenuScreen";
 import { OrderPanel } from "./screens/OrderPanel";
 import { TablesScreen } from "./screens/TablesScreen";
+import { useRevenue } from "./context/RevenueContext";
 
 const screenTitles: Record<Screen, string> = {
   tables: "میزها",
@@ -15,11 +16,13 @@ const screenTitles: Record<Screen, string> = {
 };
 
 export default function App() {
+  const { lock } = useRevenue();
   const [screen, setScreen] = useState<Screen>("tables");
   const [openOrderId, setOpenOrderId] = useState<number | null>(null);
   const [eventMode, setEventMode] = useState(false);
 
   const handleScreenChange = (nextScreen: Screen) => {
+    lock();
     setScreen(nextScreen);
     setOpenOrderId(null);
     setEventMode(false);

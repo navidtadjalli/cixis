@@ -2,6 +2,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { apiGet, apiPost } from "../lib/api";
 import { faNum, UNIT } from "../lib/format";
 import { Badge, Button } from "../components/ui";
+import { RevenueValue } from "../components/RevenueValue";
 
 type EventOrderStatus = "open" | "partially_paid" | "paid" | "closed";
 
@@ -40,17 +41,6 @@ const statusMeta: Record<
   partially_paid: { label: "پرداخت ناقص", tone: "warn" },
   paid: { label: "تسویه‌شده", tone: "good" },
 };
-
-function RevenueMasked({ className = "" }: { className?: string }) {
-  return (
-    <span className={["inline-flex items-baseline gap-2", className].join(" ")}>
-      <span className="tracking-[0.18em]" aria-label="محرمانه">
-        ••••
-      </span>
-      <span className="text-sm text-muted">{UNIT}</span>
-    </span>
-  );
-}
 
 function isActiveEventOrder(order: EventOrder): order is ActiveEventOrder {
   return order.mode === "event" && activeStatuses.has(order.status);
@@ -211,7 +201,10 @@ export function EventScreen({ onOpenOrder, onBack }: EventScreenProps) {
                       سفارش {faNum(order.id)}
                     </div>
                   </div>
-                  <RevenueMasked className="text-xl font-black text-text" />
+                  <span className="inline-flex items-baseline gap-2 text-xl font-black text-text">
+                    <RevenueValue value={order.subtotal} />
+                    <span className="text-sm text-muted">{UNIT}</span>
+                  </span>
                   <Badge tone={meta.tone}>{meta.label}</Badge>
                 </button>
               );
