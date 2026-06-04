@@ -127,4 +127,20 @@ def sync_day_closing_async(dc: DayClosing):
     if not _setting("remote_server_url"):
         _mark_pending(dc, _day_closing_payload(dc), "سرور راه دور پیکربندی نشده است.")
         return
-    threading.Thread(target=sync_day_closing, args=(dc,), daemon=True).start()
+    threading.Thread(target=_threaded_sync, args=(dc.id,), daemon=True).start()
+
+
+def _threaded_sync(day_closing_id: int):
+    """Run a sync in a worker thread, then release the per-thread DB connection.
+
+    Background threads get their own DB connection; closing it avoids leaking
+    SQLite handles over the app's lifetime.
+    """
+    from django.db import connection
+
+    try:
+        dc = DayClosing.objects.filter(id=day_closing_id).first()
+        if dc:
+            sync_day_closing(dc)
+    finally:
+        connection.close()
