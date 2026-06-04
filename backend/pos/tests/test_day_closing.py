@@ -1,0 +1,146 @@
+import os
+import tempfile
+from pathlib import Path
+from unittest.mock import patch
+
+from django.test import TestCase, override_settings
+from rest_framework.test import APIClient
+
+from pos import closing, services
+from pos.models import (
+    Category,
+    DayClosing,
+    Order,
+    Payment,
+    Product,
+    ResourcePurchase,
+    ResourceSuggestion,
+    Table,
+)
+
+
+class DayClosingTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.tmp = tempfile.TemporaryDirectory()
+        self.backup_dir = Path(self.tmp.name)
+        self.today = services.business_today()
+        self.table = Table.objects.create(name="D1", sort_order=1)
+        self.category = Category.objects.create(name="Meals", sort_order=1)
+        self.product = Product.objects.create(
+            category=self.category, name="Plate", price=100, sort_order=1
+        )
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def create_paid_order(self, quantity=2):
+        order = Order.objects.create(
+            mode=Order.Mode.TABLE,
+            table=self.table,
+            status=Order.Status.OPEN,
+            business_date=self.today,
+        )
+        item = self.client.post(
+            f"/api/orders/{order.id}/items/",
+            {"product_id": self.product.id, "quantity": quantity},
+            format="json",
+        )
+        self.assertEqual(item.status_code, 201)
+        payment = self.client.post(
+            f"/api/orders/{order.id}/payments/",
+            {"amount": 200, "method": Payment.Method.CARD},
+            format="json",
+        )
+        self.assertEqual(payment.status_code, 201)
+        order.refresh_from_db()
+        return order
+
+    def fake_copy2(self, src, dest):
+        Path(dest).write_bytes(b"test sqlite backup")
+        return dest
+
+    def test_preview_aggregates_totals_correctly(self):
+        self.create_paid_order()
+        ResourcePurchase.objects.create(
+            name="Milk", quantity=2, unit="l", cost=30, business_date=self.today
+        )
+        ResourceSuggestion.objects.create(
+            resource_name="Beans",
+            reason="Low stock",
+            suggested_quantity=1.5,
+            created_for_date=self.today,
+        )
+
+        response = self.client.get("/api/day-closing/preview/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["total_sales"], 200)
+        self.assertEqual(response.data["card_total"], 200)
+        self.assertEqual(response.data["orders_count"], 1)
+        self.assertEqual(response.data["closed_orders_count"], 1)
+        self.assertEqual(response.data["open_orders_count"], 0)
+        self.assertEqual(response.data["table_usage_count"], 1)
+        self.assertEqual(response.data["purchases_total"], 30)
+        self.assertEqual(response.data["resource_suggestions"][0]["resource_name"], "Beans")
+
+    def test_close_creates_backup_file(self):
+        self.create_paid_order()
+        with override_settings(BACKUP_DIR=self.backup_dir), patch(
+            "pos.closing.shutil.copy2", self.fake_copy2
+        ):
+            response = self.client.post(
+                "/api/day-closing/close/", {"confirm": False}, format="json"
+            )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertTrue(Path(response.data["backup_path"]).exists())
+        self.assertEqual(len(list(self.backup_dir.glob("cixis-backup-*.db"))), 1)
+
+    def test_make_backup_eight_times_leaves_only_seven_files(self):
+        class FakeLocalTime:
+            def __init__(self):
+                self.count = 0
+
+            def strftime(self, fmt):
+                self.count += 1
+                return f"20260101-00000{self.count}"
+
+        fake_time = FakeLocalTime()
+        with override_settings(BACKUP_DIR=self.backup_dir), patch(
+            "pos.closing.shutil.copy2", self.fake_copy2
+        ), patch("pos.closing.timezone.localtime", return_value=fake_time):
+            for i in range(8):
+                record = closing.make_backup()
+                if i < 7:
+                    os.utime(record.file_path, (i + 1, i + 1))
+
+        files = list(self.backup_dir.glob("cixis-backup-*.db"))
+        self.assertEqual(len(files), 7)
+
+    def test_close_blocked_with_open_orders_until_confirmed(self):
+        Order.objects.create(
+            mode=Order.Mode.TABLE,
+            table=self.table,
+            status=Order.Status.OPEN,
+            business_date=self.today,
+        )
+
+        with override_settings(BACKUP_DIR=self.backup_dir), patch(
+            "pos.closing.shutil.copy2", self.fake_copy2
+        ):
+            blocked = self.client.post(
+                "/api/day-closing/close/", {"confirm": False}, format="json"
+            )
+        self.assertEqual(blocked.status_code, 400)
+        self.assertIn("unresolved_orders", blocked.data)
+        self.assertEqual(DayClosing.objects.count(), 0)
+
+        with override_settings(BACKUP_DIR=self.backup_dir), patch(
+            "pos.closing.shutil.copy2", self.fake_copy2
+        ):
+            confirmed = self.client.post(
+                "/api/day-closing/close/", {"confirm": True}, format="json"
+            )
+        self.assertEqual(confirmed.status_code, 201)
+        self.assertEqual(DayClosing.objects.count(), 1)
