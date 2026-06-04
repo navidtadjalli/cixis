@@ -1,0 +1,48 @@
+name: Build Windows EXE
+
+on:
+  push:
+    tags:
+      - "v*"        # build on version tags, e.g. v1.0.0
+  workflow_dispatch: {}   # also allow manual runs from the Actions tab
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # Build a Windows venv that electron-builder ships via extraResources.
+      # main.cjs looks for backend/.venv/Scripts/python.exe on Windows.
+      - name: Create Windows backend venv
+        run: |
+          py -3.12 -m venv backend\.venv
+          backend\.venv\Scripts\python -m pip install --upgrade pip
+          backend\.venv\Scripts\pip install -r backend\requirements.txt
+
+      - name: Install frontend deps
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build Windows installer
+        working-directory: frontend
+        run: npm run electron:build
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: cixis-windows-installer
+          path: frontend/release/*.exe
+          if-no-files-found: error
