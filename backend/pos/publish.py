@@ -37,6 +37,7 @@ def build_menu_payload() -> dict:
 
     return {
         "cafe_slug": _setting("cafe_slug", "cixis-cafe"),
+        "cafe_name": _setting("cafe_name", "خروج"),
         "version": str(int(time.time())),
         "published_at": timezone.now().isoformat(),
         "categories": categories,

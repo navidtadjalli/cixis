@@ -9,6 +9,7 @@ from pos.models import AppSetting
 
 DEFAULTS = {
     "cafe_slug": "cixis-cafe",
+    "cafe_name": "خروج",
     "remote_server_url": "http://127.0.0.1:9000",
     "api_key": "dev-cixis-key",
     "revenue_password": "1234",
