@@ -55,8 +55,9 @@ function startDjango() {
     return;
   }
 
-  // First-launch setup: migrate, then seed menu only if not already seeded.
+  // First-launch setup: migrate, ensure default settings, then seed menu once.
   runManage(py, backendDir, ["migrate", "--noinput"]);
+  runManage(py, backendDir, ["init_settings"]);
   const seeded = runManage(py, backendDir, [
     "shell",
     "-c",
