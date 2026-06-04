@@ -18,9 +18,9 @@ export function Titlebar() {
     >
       <div className="flex items-center gap-2">
         <div className="grid h-7 w-7 place-items-center rounded-lg bg-accent text-sm font-black text-[#1b1206]">
-          C
+          خ
         </div>
-        <span className="text-sm font-bold tracking-normal">CiXiS</span>
+        <span className="text-sm font-bold tracking-normal">خروج</span>
       </div>
 
       <div

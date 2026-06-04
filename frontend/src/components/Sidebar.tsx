@@ -21,10 +21,10 @@ export function Sidebar({ active, onChange }: SidebarProps) {
     <aside className="flex w-72 flex-none flex-col border-l border-border bg-surface px-4 py-5">
       <div className="mb-6 flex items-center gap-3">
         <div className="grid h-12 w-12 place-items-center rounded-xl bg-accent text-xl font-black text-[#1b1206]">
-          C
+          خ
         </div>
         <div className="min-w-0">
-          <div className="text-lg font-bold text-text">کافه CiXiS</div>
+          <div className="text-lg font-bold text-text">کافه خروج</div>
           <div className="text-sm text-muted">صندوق فروش</div>
         </div>
       </div>
