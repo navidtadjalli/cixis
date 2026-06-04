@@ -13,6 +13,23 @@ PY313="$(command -v python3.13 || true)"
 START_REMOTE=1
 [ "${1:-}" = "--no-remote" ] && START_REMOTE=0
 
+# Free a TCP port by killing whatever listens on it (handles orphans from a
+# previous run that was hard-killed, e.g. Ctrl-C leaving Django behind).
+free_port() {
+  local port="$1" pids
+  pids="$(ss -ltnpH "sport = :$port" 2>/dev/null | grep -oP 'pid=\K[0-9]+' | sort -u)"
+  if [ -n "$pids" ]; then
+    echo "[ports] freeing :$port (killing $pids)"
+    kill $pids 2>/dev/null || true
+    sleep 1
+  fi
+}
+
+echo "[ports] checking 8000 / 9000 / 5173..."
+free_port 8000
+free_port 5173
+[ "$START_REMOTE" = "1" ] && free_port 9000
+
 # --- backend venv + setup -------------------------------------------------
 if [ ! -x "$ROOT/backend/.venv/bin/python" ]; then
   echo "[backend] creating venv..."
@@ -35,8 +52,13 @@ if [ "$START_REMOTE" = "1" ]; then
   REMOTE_PID=$!
 fi
 
-cleanup() { [ -n "$REMOTE_PID" ] && kill "$REMOTE_PID" 2>/dev/null || true; }
-trap cleanup EXIT
+cleanup() {
+  [ -n "$REMOTE_PID" ] && kill "$REMOTE_PID" 2>/dev/null || true
+  # Electron may orphan its spawned Django child on a hard exit; free it too.
+  free_port 8000
+  [ "$START_REMOTE" = "1" ] && free_port 9000
+}
+trap cleanup EXIT INT TERM
 
 # --- frontend deps + Electron --------------------------------------------
 if [ ! -d "$ROOT/frontend/node_modules" ]; then
