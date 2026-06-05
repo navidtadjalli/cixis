@@ -108,6 +108,7 @@ export function OrderPanel({ orderId, onClose }: OrderPanelProps) {
   const [tables, setTables] = useState<Table[]>([]);
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
   const [selectedTableId, setSelectedTableId] = useState("");
+  const [sourceTableId, setSourceTableId] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
   // Item-based split payment: pick how many of each item this customer pays for.
   const [splitOpen, setSplitOpen] = useState(false);
@@ -139,6 +140,16 @@ export function OrderPanel({ orderId, onClose }: OrderPanelProps) {
       .sort((a, b) => a.id - b.id);
   }, [order?.table, tables]);
 
+  // Other tables that currently hold an active order — candidates to pull items from.
+  const sourceTables = useMemo(() => {
+    return tables
+      .filter(
+        (table) =>
+          table.active_order_id !== null && table.active_order_id !== orderId,
+      )
+      .sort((a, b) => a.id - b.id);
+  }, [tables, orderId]);
+
   const remaining = order?.remaining_amount ?? 0;
   // The simple payment button settles the full remaining balance in one go.
   const canSubmitPayment = !isLocked && !isSubmitting && remaining > 0;
@@ -157,9 +168,14 @@ export function OrderPanel({ orderId, onClose }: OrderPanelProps) {
     !isLocked && !isSubmitting && splitTotal > 0 && !overRemaining;
 
   const refreshOrder = useCallback(async () => {
-    const nextOrder = await apiGet<Order>(`/orders/${orderId}/`);
+    const [nextOrder, nextTables] = await Promise.all([
+      apiGet<Order>(`/orders/${orderId}/`),
+      apiGet<Table[]>("/tables/"),
+    ]);
     setOrder(nextOrder);
+    setTables(nextTables);
     setSelectedTableId("");
+    setSourceTableId("");
   }, [orderId]);
 
   const loadProducts = useCallback(async (categoryId: number) => {
@@ -349,22 +365,81 @@ export function OrderPanel({ orderId, onClose }: OrderPanelProps) {
     });
   };
 
+  const addItemsFromTable = (tableIdValue: string) => {
+    setSourceTableId(tableIdValue);
+
+    const table = sourceTables.find((entry) => String(entry.id) === tableIdValue);
+    if (!table || table.active_order_id === null) {
+      return;
+    }
+
+    void runMutation(async () => {
+      await apiPost<Order>(`/orders/${orderId}/add-items-from/`, {
+        source_order_id: table.active_order_id,
+      });
+    });
+  };
+
+  // An empty order (no items, not locked) can be discarded outright.
+  const deleteEmptyOrder = async () => {
+    if (isSubmitting) {
+      return;
+    }
+
+    setIsSubmitting(true);
+    setError(null);
+
+    try {
+      await apiDelete<null>(`/orders/${orderId}/`);
+      onClose();
+    } catch (caughtError) {
+      setError(mutationError(caughtError));
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <div className="flex min-h-full flex-col gap-5">
       <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-border bg-surface px-5 py-4">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-3">
-            <h2 className="text-2xl font-black text-text">
-              سفارش {order?.table_name ?? order?.event_customer_label ?? ""}
-            </h2>
-            {currentStatus && <Badge tone={currentStatus.tone}>{currentStatus.label}</Badge>}
-          </div>
-          <div className="mt-2 text-sm font-semibold text-muted">
-            {order?.table_name ?? order?.event_customer_label ?? "بدون میز"}
+        <div className="flex min-w-0 items-center gap-4">
+          <Button
+            onClick={onClose}
+            className="flex items-center gap-2 whitespace-nowrap"
+          >
+            <span aria-hidden="true" className="text-lg leading-none">→</span>
+            بازگشت به میزها
+          </Button>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-3">
+              <h2 className="text-2xl font-black text-text">
+                سفارش {order?.table_name ?? order?.event_customer_label ?? ""}
+              </h2>
+              {currentStatus && <Badge tone={currentStatus.tone}>{currentStatus.label}</Badge>}
+            </div>
+            <div className="mt-2 text-sm font-semibold text-muted">
+              {order?.table_name ?? order?.event_customer_label ?? "بدون میز"}
+            </div>
           </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
+          <label className="text-sm font-semibold text-muted" htmlFor="add-items-from">
+            افزودن اقلام از میز
+          </label>
+          <select
+            id="add-items-from"
+            className="h-10 min-w-40 rounded-xl border border-border bg-surface-2 px-3 text-sm font-semibold text-text outline-none transition focus:border-accent disabled:cursor-not-allowed disabled:opacity-50"
+            value={sourceTableId}
+            disabled={isLocked || isSubmitting || isLoading || sourceTables.length === 0}
+            onChange={(event) => addItemsFromTable(event.target.value)}
+          >
+            <option value="">انتخاب میز</option>
+            {sourceTables.map((table) => (
+              <option key={table.id} value={table.id}>
+                {table.name}
+              </option>
+            ))}
+          </select>
           <label className="text-sm font-semibold text-muted" htmlFor="move-order">
             انتقال سفارش
           </label>
@@ -382,9 +457,6 @@ export function OrderPanel({ orderId, onClose }: OrderPanelProps) {
               </option>
             ))}
           </select>
-          <Button variant="ghost" onClick={onClose}>
-            بستن
-          </Button>
         </div>
       </div>
 
@@ -497,8 +569,20 @@ export function OrderPanel({ orderId, onClose }: OrderPanelProps) {
 
             <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
               {sortedItems.length === 0 ? (
-                <div className="rounded-xl border border-border bg-surface-2 p-5 text-sm font-semibold leading-7 text-muted">
-                  هنوز آیتمی به سفارش اضافه نشده است.
+                <div className="space-y-3">
+                  <div className="rounded-xl border border-border bg-surface-2 p-5 text-sm font-semibold leading-7 text-muted">
+                    هنوز آیتمی به سفارش اضافه نشده است.
+                  </div>
+                  {!isLocked && (
+                    <Button
+                      variant="ghost"
+                      className="w-full border-bad/40 text-bad hover:bg-bad/10"
+                      onClick={() => void deleteEmptyOrder()}
+                      disabled={isSubmitting}
+                    >
+                      حذف سفارش خالی
+                    </Button>
+                  )}
                 </div>
               ) : (
                 <div className="flex flex-col gap-3">
