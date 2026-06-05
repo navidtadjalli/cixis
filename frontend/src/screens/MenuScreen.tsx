@@ -575,42 +575,35 @@ export function MenuScreen() {
                 هنوز محصولی در این دسته ثبت نشده است.
               </div>
             ) : (
-              <div className="grid grid-cols-[repeat(auto-fill,minmax(15rem,1fr))] gap-4 p-5">
+              <div className="grid grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] gap-3 p-4">
                 {sortedProducts.map((product) => (
                   <article
                     key={product.id}
                     className={[
-                      "flex min-h-52 flex-col rounded-2xl border p-5 transition",
+                      "flex flex-col rounded-xl border p-3 transition",
                       product.is_available
                         ? "border-border bg-surface-2"
                         : "border-border bg-surface-2 opacity-70",
                     ].join(" ")}
                   >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <h3 className="truncate text-xl font-black text-text">
-                          {product.name}
-                        </h3>
-                        {product.description?.trim() && (
-                          <p className="mt-2 line-clamp-2 text-sm leading-7 text-muted">
-                            {product.description}
-                          </p>
-                        )}
-                      </div>
+                    <div className="flex items-start justify-between gap-2">
+                      <h3 className="min-w-0 truncate text-base font-black text-text">
+                        {product.name}
+                      </h3>
                       <Badge tone={product.is_available ? "good" : "default"}>
                         {product.is_available ? "موجود" : "ناموجود"}
                       </Badge>
                     </div>
 
-                    <div className="mt-5 text-2xl font-black text-accent">
+                    <div className="mt-2 text-lg font-black text-accent">
                       {formatMoney(product.price)}
                     </div>
 
-                    <div className="mt-auto flex flex-wrap items-center gap-2 pt-5">
+                    <div className="mt-3 flex items-center gap-1.5">
                       <button
                         type="button"
                         className={[
-                          "inline-flex min-h-10 items-center gap-2 rounded-xl border px-3 text-sm font-bold transition",
+                          "inline-flex min-h-8 items-center gap-1.5 rounded-lg border px-2 text-xs font-bold transition",
                           product.is_available
                             ? "border-good/30 bg-good/10 text-good"
                             : "border-border bg-[var(--surface-3)] text-muted",
@@ -619,14 +612,14 @@ export function MenuScreen() {
                       >
                         <span
                           className={[
-                            "relative h-5 w-9 rounded-full transition",
+                            "relative h-4 w-7 rounded-full transition",
                             product.is_available ? "bg-good/60" : "bg-border",
                           ].join(" ")}
                         >
                           <span
                             className={[
-                              "absolute top-1 h-3 w-3 rounded-full bg-text transition",
-                              product.is_available ? "right-5" : "right-1",
+                              "absolute top-1 h-2 w-2 rounded-full bg-text transition",
+                              product.is_available ? "right-4" : "right-1",
                             ].join(" ")}
                           />
                         </span>
@@ -634,7 +627,7 @@ export function MenuScreen() {
                       </button>
                       <Button
                         variant="ghost"
-                        className="min-h-10 px-3"
+                        className="min-h-8 px-2 text-xs"
                         onClick={() =>
                           setDialog({
                             type: "edit-product",
@@ -647,7 +640,7 @@ export function MenuScreen() {
                       </Button>
                       <Button
                         variant="ghost"
-                        className="min-h-10 border-bad/30 bg-bad/10 px-3 text-bad hover:bg-bad/20"
+                        className="min-h-8 border-bad/30 bg-bad/10 px-2 text-xs text-bad hover:bg-bad/20"
                         onClick={() => setDialog({ type: "delete-product", product })}
                       >
                         حذف

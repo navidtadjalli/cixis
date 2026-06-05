@@ -347,7 +347,7 @@ export function OrderPanel({ orderId, onClose }: OrderPanelProps) {
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-3">
             <h2 className="text-2xl font-black text-text">
-              سفارش {order ? faNum(order.order_number) : ""}
+              سفارش {order?.table_name ?? order?.event_customer_label ?? ""}
             </h2>
             {currentStatus && <Badge tone={currentStatus.tone}>{currentStatus.label}</Badge>}
           </div>
@@ -599,17 +599,19 @@ export function OrderPanel({ orderId, onClose }: OrderPanelProps) {
                   ))}
                 </div>
 
-                <Button className="w-full" onClick={addPayment} disabled={!canSubmitPayment}>
-                  پرداخت کامل ({formatMoney(remaining)})
-                </Button>
-                <Button
-                  variant="ghost"
-                  className="w-full"
-                  onClick={openSplit}
-                  disabled={isLocked || isSubmitting || sortedItems.length === 0}
-                >
-                  پرداخت تفکیکی (انتخاب اقلام)
-                </Button>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button className="w-full" onClick={addPayment} disabled={!canSubmitPayment}>
+                    پرداخت کامل ({formatMoney(remaining)})
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    className="w-full"
+                    onClick={openSplit}
+                    disabled={isLocked || isSubmitting || sortedItems.length === 0}
+                  >
+                    پرداخت تفکیکی
+                  </Button>
+                </div>
               </div>
             </div>
           </aside>

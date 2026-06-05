@@ -91,17 +91,30 @@ class OrderViewSet(viewsets.ModelViewSet):
         if quantity < 1:
             raise ValidationError({"quantity": "تعداد باید حداقل ۱ باشد."})
 
-        item = OrderItem.objects.create(
-            order=order,
-            product=product,
-            product_name_snapshot=product.name,
-            unit_price_snapshot=product.price,
-            quantity=quantity,
-            line_total=product.price * quantity,
-        )
+        # Merge into an existing line for the same product at the same price
+        # so repeated clicks bump the quantity instead of adding new cards.
+        item = order.items.filter(
+            product=product, unit_price_snapshot=product.price
+        ).first()
+        if item is not None:
+            item.quantity += quantity
+            item.line_total = item.unit_price_snapshot * item.quantity
+            item.save(update_fields=["quantity", "line_total", "updated_at"])
+            created = False
+        else:
+            item = OrderItem.objects.create(
+                order=order,
+                product=product,
+                product_name_snapshot=product.name,
+                unit_price_snapshot=product.price,
+                quantity=quantity,
+                line_total=product.price * quantity,
+            )
+            created = True
         services.recalc_order_totals(order)
         return Response(
-            OrderItemSerializer(item).data, status=status.HTTP_201_CREATED
+            OrderItemSerializer(item).data,
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
         )
 
     @action(detail=True, methods=["post"], url_path="payments")
