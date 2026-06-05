@@ -179,21 +179,13 @@ export function OrderPanel({ orderId, onClose }: OrderPanelProps) {
           apiGet<Table[]>("/tables/"),
         ]);
 
-        const sortedNextCategories = [...nextCategories].sort(
-          (a, b) => a.sort_order - b.sort_order || a.id - b.id,
-        );
-        const firstCategoryId = sortedNextCategories[0]?.id ?? null;
-        const nextProducts =
-          firstCategoryId === null
-            ? []
-            : await apiGet<Product[]>(`/products/?category=${firstCategoryId}`);
-
         if (!ignore) {
           setOrder(nextOrder);
           setCategories(nextCategories);
           setTables(nextTables);
-          setSelectedCategoryId(firstCategoryId);
-          setProducts(nextProducts);
+          // Start on the category list; products load when a category is opened.
+          setSelectedCategoryId(null);
+          setProducts([]);
         }
       } catch {
         if (!ignore) {
@@ -242,6 +234,16 @@ export function OrderPanel({ orderId, onClose }: OrderPanelProps) {
       setError("دریافت محصولات ناموفق بود");
     });
   };
+
+  const backToCategories = () => {
+    setSelectedCategoryId(null);
+    setProducts([]);
+  };
+
+  const selectedCategory = useMemo(
+    () => sortedCategories.find((category) => category.id === selectedCategoryId) ?? null,
+    [sortedCategories, selectedCategoryId],
+  );
 
   const addProduct = (product: Product) => {
     if (isLocked || !product.is_available) {
@@ -395,71 +397,85 @@ export function OrderPanel({ orderId, onClose }: OrderPanelProps) {
       ) : (
         <div className="grid min-h-[calc(100vh-15rem)] grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_26rem]">
           <section className="order-2 min-h-0 rounded-2xl border border-border bg-surface p-5 xl:order-1">
-            <div className="flex gap-2 overflow-x-auto pb-3">
-              {sortedCategories.length === 0 ? (
-                <div className="text-sm font-semibold text-muted">دسته‌بندی ثبت نشده است</div>
+            {selectedCategoryId === null ? (
+              sortedCategories.length === 0 ? (
+                <div className="rounded-xl border border-border bg-surface-2 p-6 text-muted">
+                  دسته‌بندی ثبت نشده است.
+                </div>
               ) : (
-                sortedCategories.map((category) => {
-                  const isSelected = category.id === selectedCategoryId;
-
-                  return (
-                    <button
-                      key={category.id}
-                      type="button"
-                      className={[
-                        "h-10 flex-none rounded-xl border px-4 text-sm font-bold transition",
-                        isSelected
-                          ? "border-accent bg-accent text-[#1b1206]"
-                          : "border-border bg-surface-2 text-muted hover:bg-[var(--surface-3)] hover:text-text",
-                      ].join(" ")}
-                      onClick={() => handleCategorySelect(category.id)}
-                    >
-                      {category.name}
-                    </button>
-                  );
-                })
-              )}
-            </div>
-
-            {isProductsLoading ? (
-              <div className="mt-4 rounded-xl border border-border bg-surface-2 p-6 text-muted">
-                در حال دریافت محصولات...
-              </div>
-            ) : sortedProducts.length === 0 ? (
-              <div className="mt-4 rounded-xl border border-border bg-surface-2 p-6 text-muted">
-                محصولی برای این دسته‌بندی ثبت نشده است.
-              </div>
+                <>
+                  <h3 className="text-lg font-black text-text">دسته‌بندی‌ها</h3>
+                  <div className="mt-4 grid grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] gap-3">
+                    {sortedCategories.map((category) => (
+                      <button
+                        key={category.id}
+                        type="button"
+                        className="min-h-24 rounded-2xl border border-border bg-surface-2 p-4 text-center text-base font-black text-text transition hover:-translate-y-0.5 hover:border-accent/50 hover:bg-[var(--surface-3)] focus:outline-none focus:ring-2 focus:ring-accent"
+                        onClick={() => handleCategorySelect(category.id)}
+                      >
+                        {category.name}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )
             ) : (
-              <div className="mt-4 grid grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] gap-3">
-                {sortedProducts.map((product) => {
-                  const disabled = isLocked || !product.is_available || isSubmitting;
+              <>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    className="grid h-10 w-10 flex-none place-items-center rounded-xl border border-border bg-surface-2 text-lg font-black text-muted transition hover:bg-[var(--surface-3)] hover:text-text"
+                    aria-label="بازگشت به دسته‌بندی‌ها"
+                    onClick={backToCategories}
+                  >
+                    ›
+                  </button>
+                  <h3 className="text-lg font-black text-text">
+                    {selectedCategory?.name ?? "محصولات"}
+                  </h3>
+                </div>
 
-                  return (
-                    <button
-                      key={product.id}
-                      type="button"
-                      className={[
-                        "min-h-32 rounded-2xl border p-4 text-right transition focus:outline-none focus:ring-2 focus:ring-accent",
-                        disabled
-                          ? "cursor-not-allowed border-border bg-surface-2 opacity-45"
-                          : "border-border bg-surface-2 hover:-translate-y-0.5 hover:border-accent/50 hover:bg-[var(--surface-3)]",
-                      ].join(" ")}
-                      disabled={disabled}
-                      onClick={() => addProduct(product)}
-                    >
-                      <div className="line-clamp-2 min-h-12 text-base font-black text-text">
-                        {product.name}
-                      </div>
-                      <div className="mt-4 flex items-center justify-between gap-2">
-                        <span className="text-sm font-semibold text-muted">
-                          {formatMoney(product.price)}
-                        </span>
-                        {!product.is_available && <Badge>ناموجود</Badge>}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
+                {isProductsLoading ? (
+                  <div className="mt-4 rounded-xl border border-border bg-surface-2 p-6 text-muted">
+                    در حال دریافت محصولات...
+                  </div>
+                ) : sortedProducts.length === 0 ? (
+                  <div className="mt-4 rounded-xl border border-border bg-surface-2 p-6 text-muted">
+                    محصولی برای این دسته‌بندی ثبت نشده است.
+                  </div>
+                ) : (
+                  <div className="mt-4 grid grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] gap-3">
+                    {sortedProducts.map((product) => {
+                      const disabled = isLocked || !product.is_available || isSubmitting;
+
+                      return (
+                        <button
+                          key={product.id}
+                          type="button"
+                          className={[
+                            "min-h-32 rounded-2xl border p-4 text-right transition focus:outline-none focus:ring-2 focus:ring-accent",
+                            disabled
+                              ? "cursor-not-allowed border-border bg-surface-2 opacity-45"
+                              : "border-border bg-surface-2 hover:-translate-y-0.5 hover:border-accent/50 hover:bg-[var(--surface-3)]",
+                          ].join(" ")}
+                          disabled={disabled}
+                          onClick={() => addProduct(product)}
+                        >
+                          <div className="line-clamp-2 min-h-12 text-base font-black text-text">
+                            {product.name}
+                          </div>
+                          <div className="mt-4 flex items-center justify-between gap-2">
+                            <span className="text-sm font-semibold text-muted">
+                              {formatMoney(product.price)}
+                            </span>
+                            {!product.is_available && <Badge>ناموجود</Badge>}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </>
             )}
           </section>
 
