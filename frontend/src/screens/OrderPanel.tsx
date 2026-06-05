@@ -100,8 +100,6 @@ export function OrderPanel({ orderId, onClose }: OrderPanelProps) {
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
   const [selectedTableId, setSelectedTableId] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
-  const [paymentAmount, setPaymentAmount] = useState("");
-  const [payerLabel, setPayerLabel] = useState("");
   // Item-based split payment: pick how many of each item this customer pays for.
   const [splitOpen, setSplitOpen] = useState(false);
   const [splitCounts, setSplitCounts] = useState<Record<number, number>>({});
@@ -133,13 +131,9 @@ export function OrderPanel({ orderId, onClose }: OrderPanelProps) {
       .sort((a, b) => a.id - b.id);
   }, [order?.table, tables]);
 
-  const parsedPaymentAmount = Number(paymentAmount);
-  const canSubmitPayment =
-    !isLocked &&
-    !isSubmitting &&
-    paymentAmount.trim() !== "" &&
-    Number.isFinite(parsedPaymentAmount) &&
-    parsedPaymentAmount > 0;
+  const remaining = order?.remaining_amount ?? 0;
+  // The simple payment button settles the full remaining balance in one go.
+  const canSubmitPayment = !isLocked && !isSubmitting && remaining > 0;
 
   // Sum of the selected items in the split modal.
   const splitTotal = useMemo(
@@ -150,7 +144,6 @@ export function OrderPanel({ orderId, onClose }: OrderPanelProps) {
       ),
     [sortedItems, splitCounts],
   );
-  const remaining = order?.remaining_amount ?? 0;
   const overRemaining = splitTotal > remaining;
   const canSubmitSplit =
     !isLocked && !isSubmitting && splitTotal > 0 && !overRemaining;
@@ -295,16 +288,11 @@ export function OrderPanel({ orderId, onClose }: OrderPanelProps) {
       return;
     }
 
-    const trimmedPayerLabel = payerLabel.trim();
-
     void runMutation(async () => {
       await apiPost<Payment>(`/orders/${orderId}/payments/`, {
-        amount: parsedPaymentAmount,
+        amount: remaining,
         method: paymentMethod,
-        ...(trimmedPayerLabel ? { payer_label: trimmedPayerLabel } : {}),
       });
-      setPaymentAmount("");
-      setPayerLabel("");
     });
   };
 
@@ -583,23 +571,8 @@ export function OrderPanel({ orderId, onClose }: OrderPanelProps) {
                   ))}
                 </div>
 
-                <input
-                  className="h-11 w-full rounded-xl border border-border bg-surface-2 px-4 text-sm font-semibold text-text outline-none transition focus:border-accent disabled:cursor-not-allowed disabled:opacity-50"
-                  inputMode="decimal"
-                  placeholder={`مبلغ (${UNIT})`}
-                  value={paymentAmount}
-                  disabled={isLocked || isSubmitting}
-                  onChange={(event) => setPaymentAmount(event.target.value)}
-                />
-                <input
-                  className="h-11 w-full rounded-xl border border-border bg-surface-2 px-4 text-sm font-semibold text-text outline-none transition focus:border-accent disabled:cursor-not-allowed disabled:opacity-50"
-                  placeholder="نام پرداخت‌کننده (اختیاری)"
-                  value={payerLabel}
-                  disabled={isLocked || isSubmitting}
-                  onChange={(event) => setPayerLabel(event.target.value)}
-                />
                 <Button className="w-full" onClick={addPayment} disabled={!canSubmitPayment}>
-                  افزودن پرداخت
+                  پرداخت کامل ({formatMoney(remaining)})
                 </Button>
                 <Button
                   variant="ghost"
