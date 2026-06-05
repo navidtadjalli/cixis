@@ -104,7 +104,6 @@ export function OrderPanel({ orderId, onClose }: OrderPanelProps) {
   const [splitOpen, setSplitOpen] = useState(false);
   const [splitCounts, setSplitCounts] = useState<Record<number, number>>({});
   const [splitMethod, setSplitMethod] = useState<PaymentMethod>("cash");
-  const [splitPayer, setSplitPayer] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isProductsLoading, setIsProductsLoading] = useState(false);
@@ -298,7 +297,6 @@ export function OrderPanel({ orderId, onClose }: OrderPanelProps) {
 
   const openSplit = () => {
     setSplitCounts({});
-    setSplitPayer("");
     setSplitMethod("cash");
     setSplitOpen(true);
   };
@@ -313,16 +311,13 @@ export function OrderPanel({ orderId, onClose }: OrderPanelProps) {
     if (!canSubmitSplit) {
       return;
     }
-    const trimmed = splitPayer.trim();
     void runMutation(async () => {
       await apiPost<Payment>(`/orders/${orderId}/payments/`, {
         amount: splitTotal,
         method: splitMethod,
-        ...(trimmed ? { payer_label: trimmed } : {}),
       });
       setSplitOpen(false);
       setSplitCounts({});
-      setSplitPayer("");
     });
   };
 
@@ -679,13 +674,6 @@ export function OrderPanel({ orderId, onClose }: OrderPanelProps) {
               </button>
             ))}
           </div>
-
-          <input
-            className="mt-3 h-11 w-full rounded-xl border border-border bg-surface-2 px-4 text-sm font-semibold text-text outline-none transition focus:border-accent"
-            placeholder="نام پرداخت‌کننده (اختیاری)"
-            value={splitPayer}
-            onChange={(event) => setSplitPayer(event.target.value)}
-          />
 
           <div className="mt-4 flex gap-2">
             <Button
