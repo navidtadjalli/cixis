@@ -6,6 +6,7 @@ import {
   type FormEvent,
   type ReactNode,
 } from "react";
+import camelIcon from "../assets/camel.png";
 import { ApiError, apiGet, apiPost } from "../lib/api";
 import { faNum, money, UNIT } from "../lib/format";
 import { Badge, Button, Modal } from "../components/ui";
@@ -187,6 +188,12 @@ function StatCard({
       <div className="mt-2 text-3xl font-black text-text">{children}</div>
       {sub && <div className="mt-2 text-sm font-semibold text-muted">{sub}</div>}
     </div>
+  );
+}
+
+function CamelEatingGrassIcon({ className = "" }: { className?: string }) {
+  return (
+    <img src={camelIcon} alt="" aria-hidden="true" className={className} />
   );
 }
 
@@ -441,9 +448,17 @@ export function DayClosingScreen() {
                 <StatCard label="سفارش بسته">
                   {faNum(preview?.closed_orders_count ?? 0)}
                 </StatCard>
-                <StatCard label="سفارش باز">
-                  {faNum(preview?.open_orders_count ?? 0)}
-                </StatCard>
+                <div className="flex items-center gap-4 rounded-xl border border-border bg-surface px-5 py-4">
+                  <CamelEatingGrassIcon className="h-14 w-14 shrink-0 object-contain" />
+                  <div className="flex flex-col">
+                    <span className="text-sm font-semibold text-muted">
+                      سفارش باز
+                    </span>
+                    <span className="mt-2 text-3xl font-black text-text">
+                      {faNum(preview?.open_orders_count ?? 0)}
+                    </span>
+                  </div>
+                </div>
                 <StatCard label="استفاده از میز">
                   {faNum(preview?.table_usage_count ?? 0)}
                 </StatCard>
@@ -462,10 +477,10 @@ export function DayClosingScreen() {
                       >
                         <div>
                           <div className="font-bold text-text">
-                            سفارش {faNum(order.order_number)}
+                            سفارش {order.table_name ?? "بدون میز"}
                           </div>
                           <div className="mt-1 text-sm font-semibold text-muted">
-                            {order.table_name ?? "بدون میز"} · {order.status}
+                            {order.status}
                           </div>
                         </div>
                         <RevenueWithUnit
@@ -719,6 +734,7 @@ export function DayClosingScreen() {
             <h2 className="text-2xl font-black text-text">بستن روز با سفارش باز</h2>
           </div>
           <p className="rounded-xl border border-warn/30 bg-warn/10 px-4 py-3 text-base font-semibold leading-8 text-warn">
+            <CamelEatingGrassIcon className="ml-1 inline-block h-5 w-5 align-text-bottom" />
             {faNum(preview?.open_orders_count ?? 0)} سفارش هنوز باز است. ادامه دادن
             روز را با تایید مدیر می‌بندد.
           </p>
