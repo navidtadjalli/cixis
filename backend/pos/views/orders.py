@@ -60,14 +60,32 @@ class OrderViewSet(viewsets.ModelViewSet):
     def update(self, request, *args, **kwargs):
         # Only status + event_customer_label + table (move order) are mutable here.
         order = self.get_object()
-        allowed = {}
-        for field in ("status", "event_customer_label", "table"):
-            if field in request.data:
-                allowed[field] = request.data[field]
+
+        # Resolve a requested table move first so we can swap, not orphan.
+        new_table_id = None
         if "table_id" in request.data:
-            allowed["table"] = request.data["table_id"]
-        for field, value in allowed.items():
-            setattr(order, "table_id" if field == "table" else field, value)
+            new_table_id = request.data["table_id"]
+        elif "table" in request.data:
+            new_table_id = request.data["table"]
+
+        if new_table_id is not None and str(new_table_id) != str(order.table_id):
+            from ..models import Table
+
+            old_table_id = order.table_id
+            target = get_object_or_404(Table, pk=new_table_id)
+            # If the destination already holds an active order, push that order
+            # onto the vacated table instead of leaving it orphaned (its table
+            # was being overwritten). This makes a move into an occupied table a
+            # two-way swap of the orders.
+            existing = services.active_order_for_table(target)
+            if existing and existing.id != order.id and old_table_id is not None:
+                existing.table_id = old_table_id
+                existing.save(update_fields=["table_id", "updated_at"])
+            order.table_id = target.id
+
+        for field in ("status", "event_customer_label"):
+            if field in request.data:
+                setattr(order, field, request.data[field])
         order.save()
         return Response(self.get_serializer(order).data)
 
@@ -115,11 +133,70 @@ class OrderViewSet(viewsets.ModelViewSet):
             status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
         )
 
+    @action(detail=True, methods=["post"], url_path="add-items-from")
+    def add_items_from(self, request, pk=None):
+        """Move every item of ``source_order_id`` into this order.
+
+        Lines for the same product at the same snapshot price merge by quantity;
+        the source order is left empty (and becomes deletable).
+        """
+        target = self.get_object()
+        if target.status in LOCKED_STATUSES:
+            return Response(
+                {"detail": "سفارش پرداخت‌شده/بسته‌شده قابل ویرایش نیست."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        source_id = request.data.get("source_order_id") or request.data.get("source")
+        source = get_object_or_404(Order, pk=source_id)
+        if source.id == target.id:
+            raise ValidationError({"source_order_id": "مبدأ و مقصد یکسان است."})
+        if source.status in LOCKED_STATUSES:
+            return Response(
+                {"detail": "سفارش مبدأ پرداخت‌شده/بسته‌شده است."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        for item in list(source.items.all()):
+            existing = target.items.filter(
+                product=item.product,
+                unit_price_snapshot=item.unit_price_snapshot,
+            ).first()
+            if existing is not None:
+                existing.quantity += item.quantity
+                existing.line_total = existing.unit_price_snapshot * existing.quantity
+                existing.save(update_fields=["quantity", "line_total", "updated_at"])
+                item.delete()
+            else:
+                item.order = target
+                item.save(update_fields=["order", "updated_at"])
+
+        services.recalc_order_totals(source)
+        services.recalc_order_totals(target)
+        return Response(self.get_serializer(target).data)
+
     @action(detail=True, methods=["post"], url_path="payments")
     def add_payment(self, request, pk=None):
         from .payments import create_payment
 
         return create_payment(self.get_object(), request)
+
+    def destroy(self, request, *args, **kwargs):
+        order = self.get_object()
+        # An order can only be discarded while it is genuinely empty — no items
+        # and no recorded payments. Anything with history must be settled, not
+        # deleted, to keep day-closing totals honest.
+        if order.items.exists():
+            return Response(
+                {"detail": "سفارش دارای اقلام است و قابل حذف نیست."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if order.payments.exists():
+            return Response(
+                {"detail": "سفارش دارای پرداخت است و قابل حذف نیست."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        order.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class OrderItemViewSet(viewsets.ModelViewSet):
