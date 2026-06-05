@@ -36,15 +36,65 @@ function backendPaths() {
   return { backendDir, py };
 }
 
+// Persistent data dir in userData. Survives app updates/reinstalls, unlike the
+// install dir (resourcesPath) which NSIS replaces on every update.
+function dataDir() {
+  const dir = path.join(app.getPath("userData"), "data");
+  fs.mkdirSync(dir, { recursive: true });
+  return dir;
+}
+
+function dbPath() {
+  return path.join(dataDir(), "cixis.sqlite3");
+}
+
+// Env handed to every Django process so DB + backups live in userData.
+function backendEnv() {
+  return {
+    ...process.env,
+    CIXIS_DB_PATH: dbPath(),
+    CIXIS_BACKUP_DIR: path.join(dataDir(), "backups"),
+  };
+}
+
 function logFilePath() {
   const dir = app.getPath("userData");
   return path.join(dir, "backend.log");
+}
+
+// Pre-update safety: snapshot the DB before migrations run. If a new release
+// ships a destructive/buggy migration, the user keeps a restorable copy.
+function preUpdateBackup() {
+  const db = dbPath();
+  if (!fs.existsSync(db)) return; // first launch: no DB yet
+  const dir = path.join(dataDir(), "pre-update-backups");
+  fs.mkdirSync(dir, { recursive: true });
+  const ts = new Date().toISOString().replace(/[:.]/g, "-");
+  try {
+    fs.copyFileSync(db, path.join(dir, `cixis-${ts}.sqlite3`));
+  } catch (e) {
+    console.error("pre-update backup failed:", e);
+  }
+  // Keep only the newest 5 pre-update snapshots.
+  const snaps = fs
+    .readdirSync(dir)
+    .filter((f) => f.endsWith(".sqlite3"))
+    .sort()
+    .reverse();
+  for (const stale of snaps.slice(5)) {
+    try {
+      fs.unlinkSync(path.join(dir, stale));
+    } catch (e) {
+      // best-effort
+    }
+  }
 }
 
 function runManage(py, backendDir, args) {
   return spawnSync(py, ["manage.py", ...args], {
     cwd: backendDir,
     encoding: "utf-8",
+    env: backendEnv(),
   });
 }
 
@@ -54,6 +104,9 @@ function startDjango() {
     console.error("Python executable not found:", py);
     return;
   }
+
+  // Snapshot existing DB before applying any new migrations from this build.
+  preUpdateBackup();
 
   // First-launch setup: migrate, ensure default settings, then seed menu once.
   runManage(py, backendDir, ["migrate", "--noinput"]);
@@ -71,7 +124,7 @@ function startDjango() {
   djangoProc = spawn(
     py,
     ["manage.py", "runserver", `127.0.0.1:${BACKEND_PORT}`, "--noreload"],
-    { cwd: backendDir },
+    { cwd: backendDir, env: backendEnv() },
   );
   djangoProc.stdout.pipe(logStream);
   djangoProc.stderr.pipe(logStream);
@@ -126,9 +179,27 @@ ipcMain.on("win:toggle-maximize", () => {
 });
 ipcMain.on("win:close", () => mainWindow && mainWindow.close());
 
+// Check for a newer release and download+notify in the background.
+// No-op in dev and when no publish feed is configured.
+function initAutoUpdate() {
+  if (isDev) return;
+  let autoUpdater;
+  try {
+    ({ autoUpdater } = require("electron-updater"));
+  } catch (e) {
+    return; // electron-updater not installed
+  }
+  autoUpdater.autoDownload = true;
+  autoUpdater.on("error", (err) =>
+    console.error("auto-update error:", err && err.message),
+  );
+  autoUpdater.checkForUpdatesAndNotify().catch(() => {});
+}
+
 app.whenReady().then(() => {
   startDjango();
   createWindow();
+  initAutoUpdate();
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

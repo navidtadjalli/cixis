@@ -1,6 +1,17 @@
 appId: com.cixis.pos
 productName: CiXiS
 
+# Auto-update feed. electron-updater reads this to find new releases.
+# Using GitHub Releases: publish a build with `electron-builder --publish always`
+# (needs GH_TOKEN env). Replace owner/repo with the real repository.
+# For a private/self-hosted feed instead, use:
+#   provider: generic
+#   url: https://your-server/cixis-updates/
+publish:
+  - provider: github
+    owner: Navidoo
+    repo: cixis
+
 directories:
   # Keep electron-builder artifacts out of Vite's dist/ output.
   output: release

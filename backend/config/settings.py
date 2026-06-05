@@ -88,7 +88,8 @@ REST_FRAMEWORK = {
 CORS_ALLOW_ALL_ORIGINS = True
 
 # Where day-closing SQLite backups are written.
-BACKUP_DIR = BASE_DIR / "backups"
+# Overridable so packaged builds write to userData (survives app updates).
+BACKUP_DIR = Path(os.environ.get("CIXIS_BACKUP_DIR", str(BASE_DIR / "backups")))
 MAX_BACKUPS = 7
 
 APP_VERSION = "1.0.0"
