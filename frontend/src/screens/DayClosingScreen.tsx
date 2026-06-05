@@ -435,7 +435,7 @@ export function DayClosingScreen() {
                 <StatCard label="انتقال بانکی">
                   <RevenueWithUnit value={preview?.bank_transfer_total} />
                 </StatCard>
-                <StatCard label="کل سفارش‌ها">
+                <StatCard label="تعداد فیش‌ها">
                   {faNum(preview?.orders_count ?? 0)}
                 </StatCard>
                 <StatCard label="سفارش بسته">
