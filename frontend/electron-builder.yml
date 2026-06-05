@@ -22,6 +22,12 @@ files:
   - electron/**/*
 
 extraResources:
+  # Seed data read by seed_menu / seed_tables. The commands resolve these via
+  # BASE_DIR.parent (= resources/), so they must ship next to the backend dir.
+  - from: ../menu.json
+    to: menu.json
+  - from: ../tables.json
+    to: tables.json
   # Ships Django and its Python runtime with the app. On a real Windows build,
   # ../backend/.venv must be a Windows venv so no separate Python install is needed.
   - from: ../backend

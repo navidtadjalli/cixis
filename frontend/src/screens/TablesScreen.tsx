@@ -258,22 +258,100 @@ export function TablesScreen({ onOpenOrder, onEventMode }: TablesScreenProps) {
             هنوز میزی ثبت نشده است.
           </div>
         ) : (
-          <div className="grid grid-cols-[repeat(auto-fit,minmax(13rem,1fr))] gap-4">
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(13rem,16rem))] gap-4">
             {sortedTables.map((table) => {
               const meta = statusMeta[table.status];
               const isEmpty = table.status === "empty";
+
+              const menu = (
+                <div
+                  className="relative"
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  <button
+                    type="button"
+                    className="grid h-10 w-10 place-items-center rounded-xl border border-border bg-surface-2 text-xl font-black text-muted transition hover:bg-[var(--surface-3)] hover:text-text"
+                    aria-label={`عملیات ${table.name}`}
+                    onClick={() =>
+                      setOpenMenuId((currentId) =>
+                        currentId === table.id ? null : table.id,
+                      )
+                    }
+                  >
+                    ⋯
+                  </button>
+
+                  {openMenuId === table.id && (
+                    <div className="absolute left-0 top-12 z-10 w-36 overflow-hidden rounded-xl border border-border bg-surface-2 shadow-xl shadow-black/30">
+                      <button
+                        type="button"
+                        className="block w-full px-4 py-3 text-right text-sm font-semibold text-text hover:bg-[var(--surface-3)]"
+                        onClick={() => {
+                          setOpenMenuId(null);
+                          setDialog({
+                            type: "rename",
+                            table,
+                            name: table.name,
+                          });
+                        }}
+                      >
+                        تغییر نام
+                      </button>
+                      <button
+                        type="button"
+                        className="block w-full px-4 py-3 text-right text-sm font-semibold text-bad hover:bg-bad/10"
+                        onClick={() => {
+                          setOpenMenuId(null);
+                          setDialog({ type: "delete", table });
+                        }}
+                      >
+                        حذف
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+
+              if (!isEmpty) {
+                return (
+                  <div
+                    key={table.id}
+                    role="button"
+                    tabIndex={0}
+                    className="relative flex aspect-square flex-col items-center justify-center gap-3 rounded-full border border-accent/40 bg-surface p-6 text-center shadow-lg shadow-black/10 ring-1 ring-accent/10 transition hover:-translate-y-0.5 hover:bg-surface-2 focus:outline-none focus:ring-2 focus:ring-accent"
+                    onClick={() => void handleTableClick(table)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        void handleTableClick(table);
+                      }
+                    }}
+                  >
+                    <div className="absolute left-4 top-4">{menu}</div>
+
+                    <div className="max-w-full truncate text-3xl font-black text-text">
+                      {table.name}
+                    </div>
+                    <Badge tone={meta.tone}>{meta.label}</Badge>
+                    <div className="flex flex-col items-center">
+                      <span className="text-xs font-semibold text-muted">
+                        مبلغ سفارش
+                      </span>
+                      <span className="inline-flex items-baseline gap-1 text-2xl font-black text-text">
+                        <span>{money(table.active_order_total ?? 0)}</span>
+                        <span className="text-sm text-muted">{UNIT}</span>
+                      </span>
+                    </div>
+                  </div>
+                );
+              }
 
               return (
                 <div
                   key={table.id}
                   role="button"
                   tabIndex={0}
-                  className={[
-                    "relative min-h-48 rounded-2xl border bg-surface p-5 text-right shadow-lg shadow-black/10 transition hover:-translate-y-0.5 hover:bg-surface-2 focus:outline-none focus:ring-2 focus:ring-accent",
-                    isEmpty
-                      ? "border-border"
-                      : "border-accent/40 ring-1 ring-accent/10",
-                  ].join(" ")}
+                  className="relative min-h-48 rounded-2xl border border-border bg-surface p-5 text-right shadow-lg shadow-black/10 transition hover:-translate-y-0.5 hover:bg-surface-2 focus:outline-none focus:ring-2 focus:ring-accent"
                   onClick={() => void handleTableClick(table)}
                   onKeyDown={(event) => {
                     if (event.key === "Enter" || event.key === " ") {
@@ -292,52 +370,7 @@ export function TablesScreen({ onOpenOrder, onEventMode }: TablesScreenProps) {
                       </div>
                     </div>
 
-                    <div
-                      className="relative"
-                      onClick={(event) => event.stopPropagation()}
-                    >
-                      <button
-                        type="button"
-                        className="grid h-10 w-10 place-items-center rounded-xl border border-border bg-surface-2 text-xl font-black text-muted transition hover:bg-[var(--surface-3)] hover:text-text"
-                        aria-label={`عملیات ${table.name}`}
-                        onClick={() =>
-                          setOpenMenuId((currentId) =>
-                            currentId === table.id ? null : table.id,
-                          )
-                        }
-                      >
-                        ⋯
-                      </button>
-
-                      {openMenuId === table.id && (
-                        <div className="absolute left-0 top-12 z-10 w-36 overflow-hidden rounded-xl border border-border bg-surface-2 shadow-xl shadow-black/30">
-                          <button
-                            type="button"
-                            className="block w-full px-4 py-3 text-right text-sm font-semibold text-text hover:bg-[var(--surface-3)]"
-                            onClick={() => {
-                              setOpenMenuId(null);
-                              setDialog({
-                                type: "rename",
-                                table,
-                                name: table.name,
-                              });
-                            }}
-                          >
-                            تغییر نام
-                          </button>
-                          <button
-                            type="button"
-                            className="block w-full px-4 py-3 text-right text-sm font-semibold text-bad hover:bg-bad/10"
-                            onClick={() => {
-                              setOpenMenuId(null);
-                              setDialog({ type: "delete", table });
-                            }}
-                          >
-                            حذف
-                          </button>
-                        </div>
-                      )}
-                    </div>
+                    {menu}
                   </div>
 
                   <div className="absolute inset-x-5 bottom-5 flex items-end justify-between gap-3 border-t border-border pt-4">
