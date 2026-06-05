@@ -61,3 +61,43 @@ class PaymentApiTests(TestCase):
         self.assertEqual(self.order.paid_amount, 300)
         self.assertEqual(self.order.remaining_amount, 0)
         self.assertEqual(self.order.status, Order.Status.PAID)
+
+    def split(self, item_id, quantity, method=Payment.Method.CARD):
+        return self.client.post(
+            f"/api/orders/{self.order.id}/payments/",
+            {"method": method, "items": [{"item_id": item_id, "quantity": quantity}]},
+            format="json",
+        )
+
+    def test_item_split_records_paid_quantity_and_derives_amount(self):
+        item = self.order.items.first()
+        response = self.split(item.id, 2)
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.data["amount"], 200)
+        item.refresh_from_db()
+        self.assertEqual(item.paid_quantity, 2)
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.paid_amount, 200)
+        self.assertEqual(self.order.remaining_amount, 100)
+        self.assertEqual(self.order.status, Order.Status.PARTIALLY_PAID)
+
+    def test_item_split_clamps_to_remaining_quantity(self):
+        item = self.order.items.first()
+        self.split(item.id, 2)
+        # Requesting more than what is left only pays the remaining 1 unit.
+        response = self.split(item.id, 5)
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.data["amount"], 100)
+        item.refresh_from_db()
+        self.assertEqual(item.paid_quantity, 3)
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.status, Order.Status.PAID)
+
+    def test_full_amount_payment_marks_all_items_paid(self):
+        item = self.order.items.first()
+        self.pay(300, Payment.Method.CASH)
+
+        item.refresh_from_db()
+        self.assertEqual(item.paid_quantity, item.quantity)

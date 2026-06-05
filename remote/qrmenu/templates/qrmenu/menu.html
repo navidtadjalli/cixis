@@ -62,52 +62,58 @@
       text-align: center;
     }
 
-    .tabs {
-      position: sticky;
-      top: 0;
-      z-index: 5;
-      display: flex;
+    .cat-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: 12px;
+      margin-top: 24px;
+    }
+
+    .cat-card {
+      padding: 22px 14px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--panel);
+      color: var(--text);
+      font-family: inherit;
+      font-size: 1.05rem;
+      font-weight: 700;
+      text-align: center;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+    }
+
+    .cat-card:hover {
+      background: var(--panel-soft);
+      border-color: var(--accent);
+    }
+
+    .back {
+      display: inline-flex;
+      align-items: center;
       gap: 8px;
-      flex-wrap: nowrap;
-      overflow-x: auto;
-      padding: 14px 0;
-      margin-bottom: 6px;
-      background: var(--bg);
-      border-bottom: 1px solid var(--line);
-      scrollbar-width: none;
-    }
-
-    .tabs::-webkit-scrollbar {
-      display: none;
-    }
-
-    .tab {
-      flex: 0 0 auto;
-      padding: 8px 16px;
+      margin-top: 20px;
+      padding: 10px 16px;
       border: 1px solid var(--line);
       border-radius: 999px;
       background: var(--panel);
-      color: var(--muted);
+      color: var(--text);
       font-family: inherit;
       font-size: 0.95rem;
       font-weight: 700;
-      white-space: nowrap;
       cursor: pointer;
-      transition: background 0.15s, color 0.15s, border-color 0.15s;
     }
 
-    .tab.active {
-      background: var(--accent);
+    .back:hover {
       border-color: var(--accent);
-      color: #1b1206;
     }
 
     .category {
       padding: 8px 0 6px;
     }
 
-    .category[hidden] {
-      display: none;
+    [hidden] {
+      display: none !important;
     }
 
     .category h2 {
@@ -200,17 +206,19 @@
       </section>
     {% else %}
       {% if categories %}
-        <nav class="tabs" role="tablist">
+        <div class="cat-grid" id="category-list">
           {% for category in categories %}
-            <button type="button" class="tab {% if forloop.first %}active{% endif %}"
-                    role="tab" data-target="cat-{{ forloop.counter }}">
+            <button type="button" class="cat-card" data-target="cat-{{ forloop.counter }}">
               {{ category.name }}
             </button>
           {% endfor %}
-        </nav>
+        </div>
 
         {% for category in categories %}
-          <section class="category" id="cat-{{ forloop.counter }}" {% if not forloop.first %}hidden{% endif %}>
+          <section class="category" id="cat-{{ forloop.counter }}" hidden>
+            <button type="button" class="back" data-back>
+              <span>›</span> دسته‌بندی‌ها
+            </button>
             <h2>{{ category.name }}</h2>
             <div class="items">
               {% for product in category.products %}
@@ -244,16 +252,29 @@
 
   <script>
     (function () {
-      var tabs = document.querySelectorAll(".tab");
+      var list = document.getElementById("category-list");
+      var cards = document.querySelectorAll(".cat-card");
       var panels = document.querySelectorAll(".category");
-      tabs.forEach(function (tab) {
-        tab.addEventListener("click", function () {
-          tabs.forEach(function (t) { t.classList.remove("active"); });
+
+      function showList() {
+        panels.forEach(function (p) { p.hidden = true; });
+        if (list) { list.hidden = false; }
+        window.scrollTo(0, 0);
+      }
+
+      cards.forEach(function (card) {
+        card.addEventListener("click", function () {
+          var target = document.getElementById(card.dataset.target);
+          if (!target) { return; }
+          if (list) { list.hidden = true; }
           panels.forEach(function (p) { p.hidden = true; });
-          tab.classList.add("active");
-          var target = document.getElementById(tab.dataset.target);
-          if (target) { target.hidden = false; }
+          target.hidden = false;
+          window.scrollTo(0, 0);
         });
+      });
+
+      document.querySelectorAll("[data-back]").forEach(function (btn) {
+        btn.addEventListener("click", showList);
       });
     })();
   </script>

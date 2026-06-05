@@ -12,6 +12,7 @@ type OrderItem = {
   product_name_snapshot: string;
   unit_price_snapshot: number;
   quantity: number;
+  paid_quantity: number;
   line_total: number;
 };
 
@@ -85,8 +86,16 @@ function formatMoney(value: number) {
 }
 
 function mutationError(error: unknown) {
-  if (error instanceof ApiError && error.status === 400) {
-    return "این سفارش برای این عملیات قفل شده است";
+  if (error instanceof ApiError) {
+    // Surface the backend's own message (e.g. order locked) instead of a
+    // generic catch-all, so the real reason isn't masked.
+    const detail = (error.body as { detail?: unknown } | null)?.detail;
+    if (typeof detail === "string" && detail) {
+      return detail;
+    }
+    if (error.status === 400) {
+      return "این سفارش برای این عملیات قفل شده است";
+    }
   }
 
   return "خطا در ارتباط با سرور";
@@ -100,13 +109,10 @@ export function OrderPanel({ orderId, onClose }: OrderPanelProps) {
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
   const [selectedTableId, setSelectedTableId] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
-  const [paymentAmount, setPaymentAmount] = useState("");
-  const [payerLabel, setPayerLabel] = useState("");
   // Item-based split payment: pick how many of each item this customer pays for.
   const [splitOpen, setSplitOpen] = useState(false);
   const [splitCounts, setSplitCounts] = useState<Record<number, number>>({});
   const [splitMethod, setSplitMethod] = useState<PaymentMethod>("cash");
-  const [splitPayer, setSplitPayer] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isProductsLoading, setIsProductsLoading] = useState(false);
@@ -133,13 +139,9 @@ export function OrderPanel({ orderId, onClose }: OrderPanelProps) {
       .sort((a, b) => a.id - b.id);
   }, [order?.table, tables]);
 
-  const parsedPaymentAmount = Number(paymentAmount);
-  const canSubmitPayment =
-    !isLocked &&
-    !isSubmitting &&
-    paymentAmount.trim() !== "" &&
-    Number.isFinite(parsedPaymentAmount) &&
-    parsedPaymentAmount > 0;
+  const remaining = order?.remaining_amount ?? 0;
+  // The simple payment button settles the full remaining balance in one go.
+  const canSubmitPayment = !isLocked && !isSubmitting && remaining > 0;
 
   // Sum of the selected items in the split modal.
   const splitTotal = useMemo(
@@ -150,7 +152,6 @@ export function OrderPanel({ orderId, onClose }: OrderPanelProps) {
       ),
     [sortedItems, splitCounts],
   );
-  const remaining = order?.remaining_amount ?? 0;
   const overRemaining = splitTotal > remaining;
   const canSubmitSplit =
     !isLocked && !isSubmitting && splitTotal > 0 && !overRemaining;
@@ -186,21 +187,13 @@ export function OrderPanel({ orderId, onClose }: OrderPanelProps) {
           apiGet<Table[]>("/tables/"),
         ]);
 
-        const sortedNextCategories = [...nextCategories].sort(
-          (a, b) => a.sort_order - b.sort_order || a.id - b.id,
-        );
-        const firstCategoryId = sortedNextCategories[0]?.id ?? null;
-        const nextProducts =
-          firstCategoryId === null
-            ? []
-            : await apiGet<Product[]>(`/products/?category=${firstCategoryId}`);
-
         if (!ignore) {
           setOrder(nextOrder);
           setCategories(nextCategories);
           setTables(nextTables);
-          setSelectedCategoryId(firstCategoryId);
-          setProducts(nextProducts);
+          // Start on the category list; products load when a category is opened.
+          setSelectedCategoryId(null);
+          setProducts([]);
         }
       } catch {
         if (!ignore) {
@@ -250,6 +243,16 @@ export function OrderPanel({ orderId, onClose }: OrderPanelProps) {
     });
   };
 
+  const backToCategories = () => {
+    setSelectedCategoryId(null);
+    setProducts([]);
+  };
+
+  const selectedCategory = useMemo(
+    () => sortedCategories.find((category) => category.id === selectedCategoryId) ?? null,
+    [sortedCategories, selectedCategoryId],
+  );
+
   const addProduct = (product: Product) => {
     if (isLocked || !product.is_available) {
       return;
@@ -295,22 +298,16 @@ export function OrderPanel({ orderId, onClose }: OrderPanelProps) {
       return;
     }
 
-    const trimmedPayerLabel = payerLabel.trim();
-
     void runMutation(async () => {
       await apiPost<Payment>(`/orders/${orderId}/payments/`, {
-        amount: parsedPaymentAmount,
+        amount: remaining,
         method: paymentMethod,
-        ...(trimmedPayerLabel ? { payer_label: trimmedPayerLabel } : {}),
       });
-      setPaymentAmount("");
-      setPayerLabel("");
     });
   };
 
   const openSplit = () => {
     setSplitCounts({});
-    setSplitPayer("");
     setSplitMethod("cash");
     setSplitOpen(true);
   };
@@ -325,16 +322,17 @@ export function OrderPanel({ orderId, onClose }: OrderPanelProps) {
     if (!canSubmitSplit) {
       return;
     }
-    const trimmed = splitPayer.trim();
+    const items = sortedItems
+      .map((item) => ({ item_id: item.id, quantity: splitCounts[item.id] ?? 0 }))
+      .filter((entry) => entry.quantity > 0);
+
     void runMutation(async () => {
       await apiPost<Payment>(`/orders/${orderId}/payments/`, {
-        amount: splitTotal,
         method: splitMethod,
-        ...(trimmed ? { payer_label: trimmed } : {}),
+        items,
       });
       setSplitOpen(false);
       setSplitCounts({});
-      setSplitPayer("");
     });
   };
 
@@ -357,7 +355,7 @@ export function OrderPanel({ orderId, onClose }: OrderPanelProps) {
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-3">
             <h2 className="text-2xl font-black text-text">
-              سفارش {order ? faNum(order.order_number) : ""}
+              سفارش {order?.table_name ?? order?.event_customer_label ?? ""}
             </h2>
             {currentStatus && <Badge tone={currentStatus.tone}>{currentStatus.label}</Badge>}
           </div>
@@ -407,71 +405,85 @@ export function OrderPanel({ orderId, onClose }: OrderPanelProps) {
       ) : (
         <div className="grid min-h-[calc(100vh-15rem)] grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_26rem]">
           <section className="order-2 min-h-0 rounded-2xl border border-border bg-surface p-5 xl:order-1">
-            <div className="flex gap-2 overflow-x-auto pb-3">
-              {sortedCategories.length === 0 ? (
-                <div className="text-sm font-semibold text-muted">دسته‌بندی ثبت نشده است</div>
+            {selectedCategoryId === null ? (
+              sortedCategories.length === 0 ? (
+                <div className="rounded-xl border border-border bg-surface-2 p-6 text-muted">
+                  دسته‌بندی ثبت نشده است.
+                </div>
               ) : (
-                sortedCategories.map((category) => {
-                  const isSelected = category.id === selectedCategoryId;
-
-                  return (
-                    <button
-                      key={category.id}
-                      type="button"
-                      className={[
-                        "h-10 flex-none rounded-xl border px-4 text-sm font-bold transition",
-                        isSelected
-                          ? "border-accent bg-accent text-[#1b1206]"
-                          : "border-border bg-surface-2 text-muted hover:bg-[var(--surface-3)] hover:text-text",
-                      ].join(" ")}
-                      onClick={() => handleCategorySelect(category.id)}
-                    >
-                      {category.name}
-                    </button>
-                  );
-                })
-              )}
-            </div>
-
-            {isProductsLoading ? (
-              <div className="mt-4 rounded-xl border border-border bg-surface-2 p-6 text-muted">
-                در حال دریافت محصولات...
-              </div>
-            ) : sortedProducts.length === 0 ? (
-              <div className="mt-4 rounded-xl border border-border bg-surface-2 p-6 text-muted">
-                محصولی برای این دسته‌بندی ثبت نشده است.
-              </div>
+                <>
+                  <h3 className="text-lg font-black text-text">دسته‌بندی‌ها</h3>
+                  <div className="mt-4 grid grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] gap-3">
+                    {sortedCategories.map((category) => (
+                      <button
+                        key={category.id}
+                        type="button"
+                        className="min-h-24 rounded-2xl border border-border bg-surface-2 p-4 text-center text-base font-black text-text transition hover:-translate-y-0.5 hover:border-accent/50 hover:bg-[var(--surface-3)] focus:outline-none focus:ring-2 focus:ring-accent"
+                        onClick={() => handleCategorySelect(category.id)}
+                      >
+                        {category.name}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )
             ) : (
-              <div className="mt-4 grid grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] gap-3">
-                {sortedProducts.map((product) => {
-                  const disabled = isLocked || !product.is_available || isSubmitting;
+              <>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    className="grid h-10 w-10 flex-none place-items-center rounded-xl border border-border bg-surface-2 text-lg font-black text-muted transition hover:bg-[var(--surface-3)] hover:text-text"
+                    aria-label="بازگشت به دسته‌بندی‌ها"
+                    onClick={backToCategories}
+                  >
+                    ›
+                  </button>
+                  <h3 className="text-lg font-black text-text">
+                    {selectedCategory?.name ?? "محصولات"}
+                  </h3>
+                </div>
 
-                  return (
-                    <button
-                      key={product.id}
-                      type="button"
-                      className={[
-                        "min-h-32 rounded-2xl border p-4 text-right transition focus:outline-none focus:ring-2 focus:ring-accent",
-                        disabled
-                          ? "cursor-not-allowed border-border bg-surface-2 opacity-45"
-                          : "border-border bg-surface-2 hover:-translate-y-0.5 hover:border-accent/50 hover:bg-[var(--surface-3)]",
-                      ].join(" ")}
-                      disabled={disabled}
-                      onClick={() => addProduct(product)}
-                    >
-                      <div className="line-clamp-2 min-h-12 text-base font-black text-text">
-                        {product.name}
-                      </div>
-                      <div className="mt-4 flex items-center justify-between gap-2">
-                        <span className="text-sm font-semibold text-muted">
-                          {formatMoney(product.price)}
-                        </span>
-                        {!product.is_available && <Badge>ناموجود</Badge>}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
+                {isProductsLoading ? (
+                  <div className="mt-4 rounded-xl border border-border bg-surface-2 p-6 text-muted">
+                    در حال دریافت محصولات...
+                  </div>
+                ) : sortedProducts.length === 0 ? (
+                  <div className="mt-4 rounded-xl border border-border bg-surface-2 p-6 text-muted">
+                    محصولی برای این دسته‌بندی ثبت نشده است.
+                  </div>
+                ) : (
+                  <div className="mt-4 grid grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] gap-3">
+                    {sortedProducts.map((product) => {
+                      const disabled = isLocked || !product.is_available || isSubmitting;
+
+                      return (
+                        <button
+                          key={product.id}
+                          type="button"
+                          className={[
+                            "min-h-32 rounded-2xl border p-4 text-right transition focus:outline-none focus:ring-2 focus:ring-accent",
+                            disabled
+                              ? "cursor-not-allowed border-border bg-surface-2 opacity-45"
+                              : "border-border bg-surface-2 hover:-translate-y-0.5 hover:border-accent/50 hover:bg-[var(--surface-3)]",
+                          ].join(" ")}
+                          disabled={disabled}
+                          onClick={() => addProduct(product)}
+                        >
+                          <div className="line-clamp-2 min-h-12 text-base font-black text-text">
+                            {product.name}
+                          </div>
+                          <div className="mt-4 flex items-center justify-between gap-2">
+                            <span className="text-sm font-semibold text-muted">
+                              {formatMoney(product.price)}
+                            </span>
+                            {!product.is_available && <Badge>ناموجود</Badge>}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </>
             )}
           </section>
 
@@ -503,6 +515,18 @@ export function OrderPanel({ orderId, onClose }: OrderPanelProps) {
                           <div className="mt-1 text-xs font-semibold text-muted">
                             {formatMoney(item.unit_price_snapshot)}
                           </div>
+                          {item.paid_quantity > 0 && (
+                            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs font-black">
+                              <span className="rounded-md bg-good/15 px-2 py-0.5 text-good">
+                                پرداخت‌شده {faNum(item.paid_quantity)}
+                              </span>
+                              {item.quantity - item.paid_quantity > 0 && (
+                                <span className="rounded-md bg-bad/15 px-2 py-0.5 text-bad">
+                                  مانده {faNum(item.quantity - item.paid_quantity)}
+                                </span>
+                              )}
+                            </div>
+                          )}
                         </div>
                         <button
                           type="button"
@@ -583,32 +607,19 @@ export function OrderPanel({ orderId, onClose }: OrderPanelProps) {
                   ))}
                 </div>
 
-                <input
-                  className="h-11 w-full rounded-xl border border-border bg-surface-2 px-4 text-sm font-semibold text-text outline-none transition focus:border-accent disabled:cursor-not-allowed disabled:opacity-50"
-                  inputMode="decimal"
-                  placeholder={`مبلغ (${UNIT})`}
-                  value={paymentAmount}
-                  disabled={isLocked || isSubmitting}
-                  onChange={(event) => setPaymentAmount(event.target.value)}
-                />
-                <input
-                  className="h-11 w-full rounded-xl border border-border bg-surface-2 px-4 text-sm font-semibold text-text outline-none transition focus:border-accent disabled:cursor-not-allowed disabled:opacity-50"
-                  placeholder="نام پرداخت‌کننده (اختیاری)"
-                  value={payerLabel}
-                  disabled={isLocked || isSubmitting}
-                  onChange={(event) => setPayerLabel(event.target.value)}
-                />
-                <Button className="w-full" onClick={addPayment} disabled={!canSubmitPayment}>
-                  افزودن پرداخت
-                </Button>
-                <Button
-                  variant="ghost"
-                  className="w-full"
-                  onClick={openSplit}
-                  disabled={isLocked || isSubmitting || sortedItems.length === 0}
-                >
-                  پرداخت تفکیکی (انتخاب اقلام)
-                </Button>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button className="w-full" onClick={addPayment} disabled={!canSubmitPayment}>
+                    پرداخت کامل ({formatMoney(remaining)})
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    className="w-full"
+                    onClick={openSplit}
+                    disabled={isLocked || isSubmitting || sortedItems.length === 0}
+                  >
+                    پرداخت تفکیکی
+                  </Button>
+                </div>
               </div>
             </div>
           </aside>
@@ -630,6 +641,7 @@ export function OrderPanel({ orderId, onClose }: OrderPanelProps) {
           <div className="mt-4 max-h-[46vh] space-y-2 overflow-y-auto pe-1">
             {sortedItems.map((item) => {
               const count = splitCounts[item.id] ?? 0;
+              const unpaid = item.quantity - item.paid_quantity;
               const wouldExceed =
                 splitTotal + item.unit_price_snapshot > order.remaining_amount;
               return (
@@ -642,7 +654,7 @@ export function OrderPanel({ orderId, onClose }: OrderPanelProps) {
                       {item.product_name_snapshot}
                     </div>
                     <div className="text-xs text-muted">
-                      {formatMoney(item.unit_price_snapshot)} · از {faNum(item.quantity)}
+                      {formatMoney(item.unit_price_snapshot)} · باقی‌مانده {faNum(unpaid)}
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
@@ -651,7 +663,7 @@ export function OrderPanel({ orderId, onClose }: OrderPanelProps) {
                         type="button"
                         className="h-8 w-8 text-lg font-black text-muted transition hover:text-bad disabled:opacity-40"
                         disabled={count <= 0}
-                        onClick={() => setSplitCount(item.id, count - 1, item.quantity)}
+                        onClick={() => setSplitCount(item.id, count - 1, unpaid)}
                       >
                         −
                       </button>
@@ -661,8 +673,8 @@ export function OrderPanel({ orderId, onClose }: OrderPanelProps) {
                       <button
                         type="button"
                         className="h-8 w-8 text-lg font-black text-muted transition hover:text-accent disabled:opacity-40"
-                        disabled={count >= item.quantity || wouldExceed}
-                        onClick={() => setSplitCount(item.id, count + 1, item.quantity)}
+                        disabled={count >= unpaid || wouldExceed}
+                        onClick={() => setSplitCount(item.id, count + 1, unpaid)}
                       >
                         +
                       </button>
@@ -706,13 +718,6 @@ export function OrderPanel({ orderId, onClose }: OrderPanelProps) {
               </button>
             ))}
           </div>
-
-          <input
-            className="mt-3 h-11 w-full rounded-xl border border-border bg-surface-2 px-4 text-sm font-semibold text-text outline-none transition focus:border-accent"
-            placeholder="نام پرداخت‌کننده (اختیاری)"
-            value={splitPayer}
-            onChange={(event) => setSplitPayer(event.target.value)}
-          />
 
           <div className="mt-4 flex gap-2">
             <Button

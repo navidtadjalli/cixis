@@ -72,6 +72,8 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 CIXIS_API_KEY = os.environ.get("CIXIS_API_KEY", "dev-cixis-key")
 
+DEFAULT_CAFE_SLUG = os.environ.get("DEFAULT_CAFE_SLUG", "cixis-cafe")
+
 REST_FRAMEWORK = {
     "UNAUTHENTICATED_USER": None,
 }

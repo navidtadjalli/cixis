@@ -125,6 +125,8 @@ class OrderItem(TimeStamped, UserStamped):
     product_name_snapshot = models.CharField(max_length=160)
     unit_price_snapshot = models.IntegerField(default=0)
     quantity = models.IntegerField(default=1)
+    # How many units of this item have been settled via split payments.
+    paid_quantity = models.IntegerField(default=0)
     line_total = models.IntegerField(default=0)
 
     class Meta:

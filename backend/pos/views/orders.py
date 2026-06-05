@@ -79,11 +79,9 @@ class OrderViewSet(viewsets.ModelViewSet):
                 {"detail": "سفارش پرداخت‌شده/بسته‌شده قابل ویرایش نیست."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        if services.is_date_closed(order.business_date):
-            return Response(
-                {"detail": "روز این سفارش بسته شده و قابل ویرایش نیست."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        # NOTE: deliberately no day-close check. Day-closing is administrative
+        # and may run a day late; the cafe keeps serving across the close (e.g.
+        # Ramadan 4am opens), so orders must stay editable regardless of it.
         product = get_object_or_404(
             Product, pk=request.data.get("product_id") or request.data.get("product")
         )
@@ -91,17 +89,30 @@ class OrderViewSet(viewsets.ModelViewSet):
         if quantity < 1:
             raise ValidationError({"quantity": "تعداد باید حداقل ۱ باشد."})
 
-        item = OrderItem.objects.create(
-            order=order,
-            product=product,
-            product_name_snapshot=product.name,
-            unit_price_snapshot=product.price,
-            quantity=quantity,
-            line_total=product.price * quantity,
-        )
+        # Merge into an existing line for the same product at the same price
+        # so repeated clicks bump the quantity instead of adding new cards.
+        item = order.items.filter(
+            product=product, unit_price_snapshot=product.price
+        ).first()
+        if item is not None:
+            item.quantity += quantity
+            item.line_total = item.unit_price_snapshot * item.quantity
+            item.save(update_fields=["quantity", "line_total", "updated_at"])
+            created = False
+        else:
+            item = OrderItem.objects.create(
+                order=order,
+                product=product,
+                product_name_snapshot=product.name,
+                unit_price_snapshot=product.price,
+                quantity=quantity,
+                line_total=product.price * quantity,
+            )
+            created = True
         services.recalc_order_totals(order)
         return Response(
-            OrderItemSerializer(item).data, status=status.HTTP_201_CREATED
+            OrderItemSerializer(item).data,
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
         )
 
     @action(detail=True, methods=["post"], url_path="payments")
@@ -122,11 +133,7 @@ class OrderItemViewSet(viewsets.ModelViewSet):
                 {"detail": "سفارش پرداخت‌شده/بسته‌شده قابل ویرایش نیست."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        if services.is_date_closed(item.order.business_date):
-            return Response(
-                {"detail": "روز این سفارش بسته شده و قابل ویرایش نیست."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        # NOTE: no day-close check here either — see add_item rationale.
         return None
 
     def partial_update(self, request, *args, **kwargs):

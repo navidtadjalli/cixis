@@ -44,7 +44,7 @@ describe("Payment form", () => {
     vi.clearAllMocks();
   });
 
-  it("submits the selected method and amount to the payments API", async () => {
+  it("pays the full remaining balance with the selected method", async () => {
     const user = userEvent.setup();
 
     mockedApiGet.mockImplementation(async (path) => {
@@ -64,7 +64,7 @@ describe("Payment form", () => {
     });
     mockedApiPost.mockResolvedValue({
       id: 1,
-      amount: 75,
+      amount: 200,
       method: "card",
       payer_label: null,
       note: null,
@@ -74,12 +74,11 @@ describe("Payment form", () => {
 
     await screen.findByText("سبد سفارش");
     await user.click(screen.getByRole("button", { name: "کارت" }));
-    await user.type(screen.getByPlaceholderText("مبلغ (هزار تومان)"), "75");
-    await user.click(screen.getByRole("button", { name: "افزودن پرداخت" }));
+    await user.click(screen.getByRole("button", { name: /پرداخت کامل/ }));
 
     await waitFor(() => {
       expect(mockedApiPost).toHaveBeenCalledWith("/orders/7/payments/", {
-        amount: 75,
+        amount: 200,
         method: "card",
       });
     });

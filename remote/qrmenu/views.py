@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.shortcuts import render
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
@@ -13,7 +14,8 @@ def latest_snapshot(cafe_slug):
     return CafeMenuSnapshot.objects.filter(cafe_slug=cafe_slug).order_by("-received_at").first()
 
 
-def public_menu_page(request, cafe_slug):
+def public_menu_page(request, cafe_slug=None):
+    cafe_slug = cafe_slug or settings.DEFAULT_CAFE_SLUG
     snapshot = latest_snapshot(cafe_slug)
     payload = snapshot.payload if snapshot else None
     categories = sorted(
@@ -27,7 +29,7 @@ def public_menu_page(request, cafe_slug):
             key=lambda product: product.get("sort_order", 0),
         )
 
-    cafe_name = (payload or {}).get("cafe_name") or (payload or {}).get("name") or cafe_slug
+    cafe_name = (payload or {}).get("cafe_name") or (payload or {}).get("name") or "خروج"
     return render(
         request,
         "qrmenu/menu.html",
