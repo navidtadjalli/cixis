@@ -27,5 +27,10 @@ urlpatterns = [
     path("menu/publish/", misc.menu_publish, name="menu-publish"),
     path("sync/retry/", misc.sync_retry, name="sync-retry"),
     path("revenue/unlock/", misc.revenue_unlock, name="revenue-unlock"),
+    path(
+        "revenue/password/",
+        misc.revenue_change_password,
+        name="revenue-change-password",
+    ),
     path("", include(router.urls)),
 ]

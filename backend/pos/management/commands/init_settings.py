@@ -3,6 +3,7 @@
 Idempotent: only creates a key if it is missing (never overwrites edited values).
 Run on first launch alongside ``seed_menu``.
 """
+from django.contrib.auth.hashers import make_password
 from django.core.management.base import BaseCommand
 
 from pos.models import AppSetting
@@ -12,7 +13,8 @@ DEFAULTS = {
     "cafe_name": "خروج",
     "remote_server_url": "http://127.0.0.1:9000",
     "api_key": "dev-cixis-key",
-    "revenue_password": "1234",
+    # revenue_password is stored hashed; default plaintext is "1234".
+    "revenue_password": make_password("1234"),
 }
 
 

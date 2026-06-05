@@ -17,6 +17,7 @@ type UnlockResponse = {
 type RevenueContextValue = {
   unlocked: boolean;
   unlock: (password: string) => Promise<void>;
+  changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
   lock: () => void;
 };
 
@@ -72,12 +73,22 @@ export function RevenueProvider({ children }: { children: ReactNode }) {
     [scheduleLock],
   );
 
+  const changePassword = useCallback(
+    async (currentPassword: string, newPassword: string) => {
+      await apiPost("/revenue/password/", {
+        current_password: currentPassword,
+        new_password: newPassword,
+      });
+    },
+    [],
+  );
+
   useEffect(() => {
     return clearLockTimer;
   }, [clearLockTimer]);
 
   return (
-    <RevenueContext.Provider value={{ unlocked, unlock, lock }}>
+    <RevenueContext.Provider value={{ unlocked, unlock, changePassword, lock }}>
       {children}
     </RevenueContext.Provider>
   );

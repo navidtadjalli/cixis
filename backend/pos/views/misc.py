@@ -2,6 +2,7 @@
 import uuid
 from datetime import timedelta
 
+from django.contrib.auth.hashers import check_password, make_password
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.decorators import api_view
@@ -11,9 +12,17 @@ from ..models import AppSetting
 from ..publish import publish_menu
 from ..sync import retry_pending
 
-# Default revenue password if none is configured yet.
+# Default revenue password if none is configured yet. Stored hashed.
 DEFAULT_REVENUE_PASSWORD = "1234"
 REVENUE_TOKEN_TTL_SECONDS = 60
+
+
+def _revenue_setting():
+    """Fetch the revenue_password setting, seeding a hashed default if missing."""
+    return AppSetting.objects.get_or_create(
+        key="revenue_password",
+        defaults={"value": make_password(DEFAULT_REVENUE_PASSWORD)},
+    )[0]
 
 
 @api_view(["POST"])
@@ -33,13 +42,32 @@ def sync_retry(request):
 @api_view(["POST"])
 def revenue_unlock(request):
     """Validate the revenue password and return a short-lived reveal token."""
-    setting, _ = AppSetting.objects.get_or_create(
-        key="revenue_password", defaults={"value": DEFAULT_REVENUE_PASSWORD}
-    )
+    setting = _revenue_setting()
     supplied = str(request.data.get("password", ""))
-    if supplied != setting.value:
+    if not check_password(supplied, setting.value):
         return Response(
             {"detail": "رمز عبور نادرست است."}, status=status.HTTP_401_UNAUTHORIZED
         )
     expires_at = timezone.now() + timedelta(seconds=REVENUE_TOKEN_TTL_SECONDS)
     return Response({"token": str(uuid.uuid4()), "expires_at": expires_at.isoformat()})
+
+
+@api_view(["POST"])
+def revenue_change_password(request):
+    """Verify the current revenue password and set a new one."""
+    setting = _revenue_setting()
+    current = str(request.data.get("current_password", ""))
+    new = str(request.data.get("new_password", ""))
+    if not check_password(current, setting.value):
+        return Response(
+            {"detail": "رمز عبور فعلی نادرست است."},
+            status=status.HTTP_401_UNAUTHORIZED,
+        )
+    if len(new) < 4:
+        return Response(
+            {"detail": "رمز عبور جدید باید حداقل ۴ نویسه باشد."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    setting.value = make_password(new)
+    setting.save(update_fields=["value"])
+    return Response({"detail": "رمز عبور تغییر کرد."})
