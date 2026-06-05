@@ -23,14 +23,10 @@ class Command(BaseCommand):
         with open(tables_path, encoding="utf-8") as fh:
             data = json.load(fh)
 
-        names = data.get("tables", [])
+        names = [str(n).strip() for n in data.get("tables", []) if str(n).strip()]
         created = 0
 
         for index, name in enumerate(names):
-            name = str(name).strip()
-            if not name:
-                continue
-
             table, made = Table.objects.get_or_create(
                 name=name,
                 defaults={"sort_order": index, "is_active": True},
@@ -38,9 +34,13 @@ class Command(BaseCommand):
             if made:
                 created += 1
             elif table.sort_order != index:
-                # Keep ordering in sync without disturbing manual edits.
                 table.sort_order = index
                 table.save(update_fields=["sort_order"])
+
+        # Authoritative: the table set is exactly tables.json. Any row not listed
+        # is removed so a fresh install matches the file with no manual cleanup.
+        # Order.table is on_delete=SET_NULL, so removing a table never deletes orders.
+        removed, _ = Table.objects.exclude(name__in=names).delete()
 
         AppSetting.objects.update_or_create(
             key="tables_seeded", defaults={"value": "true"}
@@ -48,7 +48,7 @@ class Command(BaseCommand):
 
         self.stdout.write(
             self.style.SUCCESS(
-                f"Seed complete: +{created} tables "
+                f"Seed complete: +{created} created, -{removed} removed "
                 f"({Table.objects.count()} tables total)."
             )
         )
