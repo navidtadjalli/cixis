@@ -9,7 +9,7 @@ productName: CiXiS
 #   url: https://your-server/cixis-updates/
 publish:
   - provider: github
-    owner: Navidoo
+    owner: navidtadjalli
     repo: cixis
 
 directories:
