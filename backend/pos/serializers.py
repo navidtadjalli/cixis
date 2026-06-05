@@ -39,6 +39,7 @@ class OrderItemSerializer(serializers.ModelSerializer):
             "product_name_snapshot",
             "unit_price_snapshot",
             "quantity",
+            "paid_quantity",
             "line_total",
         ]
         read_only_fields = [
@@ -46,6 +47,7 @@ class OrderItemSerializer(serializers.ModelSerializer):
             "order",
             "product_name_snapshot",
             "unit_price_snapshot",
+            "paid_quantity",
             "line_total",
         ]
 

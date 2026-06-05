@@ -12,6 +12,7 @@ type OrderItem = {
   product_name_snapshot: string;
   unit_price_snapshot: number;
   quantity: number;
+  paid_quantity: number;
   line_total: number;
 };
 
@@ -311,10 +312,14 @@ export function OrderPanel({ orderId, onClose }: OrderPanelProps) {
     if (!canSubmitSplit) {
       return;
     }
+    const items = sortedItems
+      .map((item) => ({ item_id: item.id, quantity: splitCounts[item.id] ?? 0 }))
+      .filter((entry) => entry.quantity > 0);
+
     void runMutation(async () => {
       await apiPost<Payment>(`/orders/${orderId}/payments/`, {
-        amount: splitTotal,
         method: splitMethod,
+        items,
       });
       setSplitOpen(false);
       setSplitCounts({});
@@ -486,6 +491,18 @@ export function OrderPanel({ orderId, onClose }: OrderPanelProps) {
                           <div className="mt-1 text-xs font-semibold text-muted">
                             {formatMoney(item.unit_price_snapshot)}
                           </div>
+                          {item.paid_quantity > 0 && (
+                            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs font-black">
+                              <span className="rounded-md bg-good/15 px-2 py-0.5 text-good">
+                                پرداخت‌شده {faNum(item.paid_quantity)}
+                              </span>
+                              {item.quantity - item.paid_quantity > 0 && (
+                                <span className="rounded-md bg-bad/15 px-2 py-0.5 text-bad">
+                                  مانده {faNum(item.quantity - item.paid_quantity)}
+                                </span>
+                              )}
+                            </div>
+                          )}
                         </div>
                         <button
                           type="button"
@@ -598,6 +615,7 @@ export function OrderPanel({ orderId, onClose }: OrderPanelProps) {
           <div className="mt-4 max-h-[46vh] space-y-2 overflow-y-auto pe-1">
             {sortedItems.map((item) => {
               const count = splitCounts[item.id] ?? 0;
+              const unpaid = item.quantity - item.paid_quantity;
               const wouldExceed =
                 splitTotal + item.unit_price_snapshot > order.remaining_amount;
               return (
@@ -610,7 +628,7 @@ export function OrderPanel({ orderId, onClose }: OrderPanelProps) {
                       {item.product_name_snapshot}
                     </div>
                     <div className="text-xs text-muted">
-                      {formatMoney(item.unit_price_snapshot)} · از {faNum(item.quantity)}
+                      {formatMoney(item.unit_price_snapshot)} · باقی‌مانده {faNum(unpaid)}
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
@@ -619,7 +637,7 @@ export function OrderPanel({ orderId, onClose }: OrderPanelProps) {
                         type="button"
                         className="h-8 w-8 text-lg font-black text-muted transition hover:text-bad disabled:opacity-40"
                         disabled={count <= 0}
-                        onClick={() => setSplitCount(item.id, count - 1, item.quantity)}
+                        onClick={() => setSplitCount(item.id, count - 1, unpaid)}
                       >
                         −
                       </button>
@@ -629,8 +647,8 @@ export function OrderPanel({ orderId, onClose }: OrderPanelProps) {
                       <button
                         type="button"
                         className="h-8 w-8 text-lg font-black text-muted transition hover:text-accent disabled:opacity-40"
-                        disabled={count >= item.quantity || wouldExceed}
-                        onClick={() => setSplitCount(item.id, count + 1, item.quantity)}
+                        disabled={count >= unpaid || wouldExceed}
+                        onClick={() => setSplitCount(item.id, count + 1, unpaid)}
                       >
                         +
                       </button>
