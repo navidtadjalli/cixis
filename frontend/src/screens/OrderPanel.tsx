@@ -86,8 +86,16 @@ function formatMoney(value: number) {
 }
 
 function mutationError(error: unknown) {
-  if (error instanceof ApiError && error.status === 400) {
-    return "این سفارش برای این عملیات قفل شده است";
+  if (error instanceof ApiError) {
+    // Surface the backend's own message (e.g. order locked) instead of a
+    // generic catch-all, so the real reason isn't masked.
+    const detail = (error.body as { detail?: unknown } | null)?.detail;
+    if (typeof detail === "string" && detail) {
+      return detail;
+    }
+    if (error.status === 400) {
+      return "این سفارش برای این عملیات قفل شده است";
+    }
   }
 
   return "خطا در ارتباط با سرور";
