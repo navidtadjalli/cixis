@@ -25,15 +25,15 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: "3.13"
 
-      # Build a Windows venv that electron-builder ships via extraResources.
-      # main.cjs looks for backend/.venv/Scripts/python.exe on Windows.
-      - name: Create Windows backend venv
-        run: |
-          py -3.12 -m venv backend\.venv
-          backend\.venv\Scripts\python -m pip install --upgrade pip
-          backend\.venv\Scripts\pip install -r backend\requirements.txt
+      # Build the self-contained Windows Python bundle electron-builder ships:
+      #   backend/python-embed/  -> standalone embeddable CPython (no install needed)
+      #   backend/pylibs/        -> Django + deps as win_amd64 wheels
+      # A venv is NOT used: it references a base Python by absolute path, so it is
+      # not portable to a PC without Python installed. See the script header.
+      - name: Build embedded Python backend bundle
+        run: python backend\build_win_python.py
 
       - name: Install frontend deps
         working-directory: frontend

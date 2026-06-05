@@ -25,8 +25,18 @@ async function readJson(response: Response) {
   }
 }
 
+// In dev the page is served over http and Vite proxies /api to the backend, so a
+// relative path works. In the packaged app the page is loaded via file://, where
+// a relative /api/ would resolve to file:///api/ and never reach Django — so we
+// target the local backend directly. CORS_ALLOW_ALL_ORIGINS is enabled server-side.
+const API_BASE =
+  typeof window !== "undefined" && window.location.protocol === "file:"
+    ? "http://127.0.0.1:8000"
+    : "";
+
 function apiPath(path: string) {
-  return path.startsWith("/api/") ? path : `/api/${path.replace(/^\/+/, "")}`;
+  const rel = path.startsWith("/api/") ? path : `/api/${path.replace(/^\/+/, "")}`;
+  return `${API_BASE}${rel}`;
 }
 
 async function apiRequest<TResponse>(
