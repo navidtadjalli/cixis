@@ -119,6 +119,14 @@ function startDjango() {
   if (!String(seeded.stdout).includes("True")) {
     runManage(py, backendDir, ["seed_menu"]);
   }
+  const tablesSeeded = runManage(py, backendDir, [
+    "shell",
+    "-c",
+    "from pos.models import AppSetting; print(AppSetting.objects.filter(key='tables_seeded', value='true').exists())",
+  ]);
+  if (!String(tablesSeeded.stdout).includes("True")) {
+    runManage(py, backendDir, ["seed_tables"]);
+  }
 
   const logStream = fs.createWriteStream(logFilePath(), { flags: "a" });
   djangoProc = spawn(
