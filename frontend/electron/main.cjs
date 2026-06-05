@@ -29,9 +29,12 @@ function backendPaths() {
   }
   // Packaged: backend shipped via extraResources (see electron-builder.yml).
   const backendDir = path.join(process.resourcesPath, "backend");
+  // Windows ships a standalone embeddable Python (no install needed). Its
+  // python313._pth adds ../backend and ../backend/pylibs to sys.path, so Django
+  // + deps resolve without a venv. macOS/Linux still use a local .venv.
   const py =
     process.platform === "win32"
-      ? path.join(backendDir, ".venv", "Scripts", "python.exe")
+      ? path.join(process.resourcesPath, "python", "python.exe")
       : path.join(backendDir, ".venv", "bin", "python");
   return { backendDir, py };
 }

@@ -6,6 +6,9 @@ claude-design
 # --- Python / Django ---
 backend/.venv/
 remote/.venv/
+# Generated Windows-bundle artifacts (rebuild with backend/build_win_python.py)
+backend/pylibs/
+backend/python-embed/
 __pycache__/
 *.py[cod]
 *.sqlite3

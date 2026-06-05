@@ -28,13 +28,16 @@ extraResources:
     to: menu.json
   - from: ../tables.json
     to: tables.json
-  # Ships Django and its Python runtime with the app. On a real Windows build,
-  # ../backend/.venv must be a Windows venv so no separate Python install is needed.
+  # Ships Django source + its deps (pylibs/, built by backend/build-win-python.sh).
+  # NOTE: .venv is intentionally excluded — a venv is not portable (it only
+  # references a base Python by absolute path) and a Linux venv cannot run on
+  # Windows. Deps live in pylibs/ as Windows wheels instead.
   - from: ../backend
     to: backend
     filter:
       - "**/*"
-      - ".venv/**/*"
+      - "!.venv/**/*"
+      - "!python-embed/**/*"
       - "!**/__pycache__/**"
       - "!**/*.py[cod]"
       - "!**/db.sqlite3"
@@ -44,6 +47,13 @@ extraResources:
       - "!**/*.bak"
       - "!**/*.backup"
       - "!**/*.log"
+  # Standalone embeddable Python for Windows — no separate Python install needed.
+  # Built by backend/build-win-python.sh. Its python313._pth points at
+  # ../backend + ../backend/pylibs so Django resolves from here.
+  - from: ../backend/python-embed
+    to: python
+    filter:
+      - "**/*"
 
 win:
   target: nsis
