@@ -16,6 +16,10 @@ describe("Sidebar", () => {
         categories={categories}
         selectedCategoryId={2}
         onSelectCategory={vi.fn()}
+        products={[]}
+        isProductsLoading={false}
+        onAddProduct={vi.fn()}
+        canAddProduct={false}
       />,
     );
 

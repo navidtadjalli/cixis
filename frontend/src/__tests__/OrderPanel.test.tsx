@@ -96,9 +96,7 @@ describe("OrderPanel", () => {
       <OrderPanel
         orderId={7}
         onClose={vi.fn()}
-        selectedCategoryId={null}
-        products={[]}
-        isProductsLoading={false}
+        registerAddProduct={vi.fn()}
       />,
     );
 

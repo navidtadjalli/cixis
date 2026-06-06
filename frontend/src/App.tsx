@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Sidebar, navItems, type Screen } from "./components/Sidebar";
 import { Titlebar } from "./components/Titlebar";
 import { EventScreen } from "./screens/EventScreen";
@@ -27,6 +27,13 @@ export default function App() {
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [productsLoading, setProductsLoading] = useState(false);
+
+  // The open OrderPanel registers its addProduct handler here so the sidebar
+  // product picker can add items to the active order.
+  const addProductRef = useRef<((product: Product) => void) | null>(null);
+  const handleSidebarAddProduct = useCallback((product: Product) => {
+    addProductRef.current?.(product);
+  }, []);
 
   const refreshTables = useCallback(async () => {
     setTables(await apiGet<Table[]>("/tables/"));
@@ -139,6 +146,10 @@ export default function App() {
           categories={categories}
           selectedCategoryId={selectedCategoryId}
           onSelectCategory={handleSelectCategory}
+          products={products}
+          isProductsLoading={productsLoading}
+          onAddProduct={handleSidebarAddProduct}
+          canAddProduct={openOrderId !== null}
           occupiedCount={counts.occupied}
           emptyCount={counts.empty}
         />
@@ -174,9 +185,9 @@ export default function App() {
               {openOrderId !== null ? (
                 <OrderPanel
                   orderId={openOrderId}
-                  selectedCategoryId={selectedCategoryId}
-                  products={products}
-                  isProductsLoading={productsLoading}
+                  registerAddProduct={(handler) => {
+                    addProductRef.current = handler;
+                  }}
                   onClose={() => {
                     setOpenOrderId(null);
                     void refreshTables();
