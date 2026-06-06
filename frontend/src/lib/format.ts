@@ -16,3 +16,14 @@ export function faGroup(n: number) {
 export function money(n: number) {
   return faGroup(n);
 }
+
+// Clock time (HH:MM) of an ISO timestamp, with Persian digits.
+export function faTime(iso: string) {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+  const hh = String(date.getHours()).padStart(2, "0");
+  const mm = String(date.getMinutes()).padStart(2, "0");
+  return faNum(`${hh}:${mm}`);
+}

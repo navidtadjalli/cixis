@@ -92,7 +92,15 @@ describe("OrderPanel", () => {
       return { ...baseOrder.items[0], quantity, line_total: quantity * 100 };
     });
 
-    render(<OrderPanel orderId={7} onClose={vi.fn()} />);
+    render(
+      <OrderPanel
+        orderId={7}
+        onClose={vi.fn()}
+        selectedCategoryId={null}
+        products={[]}
+        isProductsLoading={false}
+      />,
+    );
 
     const item = (await screen.findByText("لاته")).closest(".rounded-xl");
     expect(item).not.toBeNull();
