@@ -3,19 +3,12 @@ import {
   useEffect,
   useMemo,
   useState,
-  type FormEvent,
   type ReactNode,
 } from "react";
 import camelIcon from "../assets/camel.png";
 import { ApiError, apiGet, apiPost } from "../lib/api";
 import { faNum, money, UNIT } from "../lib/format";
 import { Badge, Button, Modal } from "../components/ui";
-
-type ResourceSuggestion = {
-  resource_name: string;
-  reason: string;
-  suggested_quantity: number;
-};
 
 type UnresolvedOrder = {
   id: number;
@@ -34,26 +27,7 @@ type ClosingPreview = {
   closed_orders_count: number;
   open_orders_count: number;
   table_usage_count: number;
-  purchases_total: number;
-  resource_suggestions: ResourceSuggestion[];
   unresolved_orders: UnresolvedOrder[];
-};
-
-type Purchase = {
-  id: number;
-  name: string;
-  quantity: number;
-  unit: string;
-  cost: number;
-  note?: string | null;
-  created_at?: string;
-};
-
-type PurchaseForm = {
-  name: string;
-  quantity: string;
-  unit: string;
-  cost: string;
 };
 
 type ClosingResult = ClosingPreview & {
@@ -94,16 +68,25 @@ type MonthlyReport = {
   daily: MonthlyDaily[];
 };
 
+type RangeItem = {
+  product_name: string;
+  quantity: number;
+  amount: number;
+};
+
+type RangeReport = {
+  from: string;
+  to: string;
+  orders_count: number;
+  orders_total: number;
+  items: RangeItem[];
+  items_quantity_total: number;
+  items_amount_total: number;
+};
+
 type Toast = {
   tone: "good" | "bad" | "warn";
   message: string;
-};
-
-const emptyPurchaseForm: PurchaseForm = {
-  name: "",
-  quantity: "",
-  unit: "",
-  cost: "",
 };
 
 const syncMeta: Partial<
@@ -214,13 +197,10 @@ function RevenueWithUnit({
 
 export function DayClosingScreen() {
   const [preview, setPreview] = useState<ClosingPreview | null>(null);
-  const [purchases, setPurchases] = useState<Purchase[]>([]);
-  const [purchaseForm, setPurchaseForm] = useState<PurchaseForm>(emptyPurchaseForm);
   const [closingResult, setClosingResult] = useState<ClosingResult | null>(null);
   const [confirmClose, setConfirmClose] = useState(false);
   const [toast, setToast] = useState<Toast | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isSubmittingPurchase, setIsSubmittingPurchase] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
   const [isRetryingSync, setIsRetryingSync] = useState(false);
   const [monthForm, setMonthForm] = useState(defaultMonth);
@@ -228,6 +208,10 @@ export function DayClosingScreen() {
   const [isMonthlyLoading, setIsMonthlyLoading] = useState(false);
 
   const today = useMemo(() => todayLocalDate(), []);
+
+  const [rangeForm, setRangeForm] = useState({ from: today, to: today });
+  const [rangeReport, setRangeReport] = useState<RangeReport | null>(null);
+  const [isRangeLoading, setIsRangeLoading] = useState(false);
 
   const showToast = useCallback((nextToast: Toast) => {
     setToast(nextToast);
@@ -239,25 +223,18 @@ export function DayClosingScreen() {
     setPreview(nextPreview);
   }, []);
 
-  const loadPurchases = useCallback(async () => {
-    const nextPurchases = await apiGet<Purchase[]>(
-      `/resources/purchases/?date=${today}`,
-    );
-    setPurchases(nextPurchases);
-  }, [today]);
-
   const loadInitial = useCallback(async () => {
     setIsLoading(true);
 
     try {
-      await Promise.all([loadPreview(), loadPurchases()]);
+      await loadPreview();
       setToast(null);
     } catch {
       showToast({ tone: "bad", message: "دریافت اطلاعات بستن روز ناموفق بود" });
     } finally {
       setIsLoading(false);
     }
-  }, [loadPreview, loadPurchases, showToast]);
+  }, [loadPreview, showToast]);
 
   const loadMonthlyReport = useCallback(async (yearValue: string, monthValue: string) => {
     const year = parseInteger(yearValue);
@@ -282,47 +259,48 @@ export function DayClosingScreen() {
     }
   }, [showToast]);
 
+  const loadRangeReport = useCallback(
+    async (fromValue: string, toValue: string) => {
+      if (!fromValue || !toValue) {
+        showToast({ tone: "warn", message: "بازه تاریخ را کامل وارد کنید" });
+        return;
+      }
+      if (fromValue > toValue) {
+        showToast({ tone: "warn", message: "تاریخ شروع بعد از تاریخ پایان است" });
+        return;
+      }
+
+      setIsRangeLoading(true);
+
+      try {
+        const report = await apiGet<RangeReport>(
+          `/reports/range/?from=${fromValue}&to=${toValue}`,
+        );
+        setRangeReport(report);
+      } catch {
+        showToast({ tone: "bad", message: "دریافت گزارش بازه‌ای ناموفق بود" });
+      } finally {
+        setIsRangeLoading(false);
+      }
+    },
+    [showToast],
+  );
+
   useEffect(() => {
     void loadInitial();
   }, [loadInitial]);
+
+  useEffect(() => {
+    void loadRangeReport(today, today);
+    // Load the default single-day range once; later loads come from the form.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadRangeReport]);
 
   useEffect(() => {
     void loadMonthlyReport(monthForm.year, monthForm.month);
     // Load the default current-month report once; form submits handle later reloads.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadMonthlyReport]);
-
-  const submitPurchase = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-
-    const name = purchaseForm.name.trim();
-    const unit = purchaseForm.unit.trim();
-    const quantity = parsePositiveNumber(purchaseForm.quantity);
-    const cost = parsePositiveNumber(purchaseForm.cost);
-
-    if (!name || !unit || quantity === null || cost === null) {
-      showToast({ tone: "warn", message: "نام، تعداد، واحد و هزینه را کامل وارد کنید" });
-      return;
-    }
-
-    setIsSubmittingPurchase(true);
-
-    try {
-      await apiPost<Purchase>("/resources/purchases/", {
-        name,
-        quantity,
-        unit,
-        cost,
-      });
-      setPurchaseForm(emptyPurchaseForm);
-      await Promise.all([loadPurchases(), loadPreview()]);
-      showToast({ tone: "good", message: "خرید ثبت شد" });
-    } catch {
-      showToast({ tone: "bad", message: "ثبت خرید ناموفق بود" });
-    } finally {
-      setIsSubmittingPurchase(false);
-    }
-  };
 
   const closeDay = async (confirm: boolean) => {
     setIsClosing(true);
@@ -517,114 +495,6 @@ export function DayClosingScreen() {
               )}
             </section>
 
-            <section className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-              <div className="rounded-2xl border border-border bg-surface p-6">
-                <h2 className="text-2xl font-black text-text">خرید منابع</h2>
-                <form
-                  className="mt-5 grid gap-3 md:grid-cols-4"
-                  onSubmit={(event) => void submitPurchase(event)}
-                >
-                  <input
-                    className="rounded-xl border border-border bg-surface-2 px-4 py-3 text-base font-semibold text-text outline-none transition focus:border-accent"
-                    placeholder="نام"
-                    value={purchaseForm.name}
-                    onChange={(event) =>
-                      setPurchaseForm({ ...purchaseForm, name: event.target.value })
-                    }
-                  />
-                  <input
-                    className="rounded-xl border border-border bg-surface-2 px-4 py-3 text-base font-semibold text-text outline-none transition focus:border-accent"
-                    inputMode="decimal"
-                    placeholder="تعداد"
-                    value={purchaseForm.quantity}
-                    onChange={(event) =>
-                      setPurchaseForm({ ...purchaseForm, quantity: event.target.value })
-                    }
-                  />
-                  <input
-                    className="rounded-xl border border-border bg-surface-2 px-4 py-3 text-base font-semibold text-text outline-none transition focus:border-accent"
-                    placeholder="واحد"
-                    value={purchaseForm.unit}
-                    onChange={(event) =>
-                      setPurchaseForm({ ...purchaseForm, unit: event.target.value })
-                    }
-                  />
-                  <input
-                    className="rounded-xl border border-border bg-surface-2 px-4 py-3 text-base font-semibold text-text outline-none transition focus:border-accent"
-                    inputMode="decimal"
-                    placeholder="هزینه"
-                    value={purchaseForm.cost}
-                    onChange={(event) =>
-                      setPurchaseForm({ ...purchaseForm, cost: event.target.value })
-                    }
-                  />
-                  <Button
-                    className="md:col-span-4"
-                    type="submit"
-                    disabled={isSubmittingPurchase}
-                  >
-                    {isSubmittingPurchase ? "در حال ثبت..." : "ثبت خرید"}
-                  </Button>
-                </form>
-
-                <div className="mt-5 grid gap-2">
-                  {purchases.length === 0 ? (
-                    <div className="rounded-xl border border-border bg-surface-2 px-4 py-4 text-sm font-semibold text-muted">
-                      امروز خریدی ثبت نشده است.
-                    </div>
-                  ) : (
-                    purchases.map((purchase) => (
-                      <div
-                        key={purchase.id}
-                        className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-surface-2 px-4 py-3"
-                      >
-                        <div>
-                          <div className="font-bold text-text">{purchase.name}</div>
-                          <div className="mt-1 text-sm font-semibold text-muted">
-                            {faNum(purchase.quantity)} {purchase.unit}
-                          </div>
-                        </div>
-                        <RevenueWithUnit
-                          value={purchase.cost}
-                          className="text-lg font-black text-text"
-                        />
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-border bg-surface p-6">
-                <h2 className="text-2xl font-black text-text">پیشنهادهای منابع</h2>
-                <div className="mt-5 grid gap-3">
-                  {!preview || preview.resource_suggestions.length === 0 ? (
-                    <div className="rounded-xl border border-border bg-surface-2 px-4 py-4 text-sm font-semibold text-muted">
-                      پیشنهادی برای امروز ثبت نشده است.
-                    </div>
-                  ) : (
-                    preview.resource_suggestions.map((suggestion) => (
-                      <div
-                        key={`${suggestion.resource_name}-${suggestion.reason}`}
-                        className="rounded-xl border border-border bg-surface-2 px-4 py-3"
-                      >
-                        <div className="flex flex-wrap items-center justify-between gap-3">
-                          <div className="font-black text-text">
-                            {suggestion.resource_name}
-                          </div>
-                          <Badge tone="accent">
-                            {faNum(suggestion.suggested_quantity)} پیشنهادی
-                          </Badge>
-                        </div>
-                        <div className="mt-2 text-sm font-semibold leading-7 text-muted">
-                          {suggestion.reason}
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-            </section>
-
             <details className="rounded-2xl border border-border bg-surface p-6" open>
               <summary className="cursor-pointer list-none text-2xl font-black text-text">
                 گزارش ماهانه
@@ -683,9 +553,6 @@ export function DayClosingScreen() {
                 <StatCard label="انتقال بانکی">
                   <RevenueWithUnit value={monthlyReport?.bank_transfer_total} />
                 </StatCard>
-                <StatCard label="خرید ماه">
-                  <RevenueWithUnit value={monthlyReport?.purchases_total} />
-                </StatCard>
                 <StatCard label="روز کاری">
                   {faNum(monthlyReport?.days_count ?? 0)}
                 </StatCard>
@@ -716,6 +583,100 @@ export function DayClosingScreen() {
                         <div className="text-muted">{faNum(day.orders_count)}</div>
                         <RevenueWithUnit
                           value={day.total_sales}
+                          className="justify-end text-left font-black text-text"
+                        />
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </details>
+
+            <details className="rounded-2xl border border-border bg-surface p-6" open>
+              <summary className="cursor-pointer list-none text-2xl font-black text-text">
+                گزارش بازه‌ای
+              </summary>
+              <div className="mt-5 flex flex-wrap items-end justify-between gap-4">
+                <div>
+                  <p className="mt-1 text-sm font-semibold text-muted">
+                    جمع سفارش‌ها و تعداد و مبلغ هر آیتم در بازه انتخابی
+                  </p>
+                </div>
+                <form
+                  className="flex flex-wrap items-end gap-3"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    void loadRangeReport(rangeForm.from, rangeForm.to);
+                  }}
+                >
+                  <label className="block text-sm font-semibold text-muted">
+                    از تاریخ
+                    <input
+                      type="date"
+                      className="mt-2 w-44 rounded-xl border border-border bg-surface-2 px-3 py-2 text-base font-semibold text-text outline-none transition focus:border-accent"
+                      value={rangeForm.from}
+                      onChange={(event) =>
+                        setRangeForm({ ...rangeForm, from: event.target.value })
+                      }
+                    />
+                  </label>
+                  <label className="block text-sm font-semibold text-muted">
+                    تا تاریخ
+                    <input
+                      type="date"
+                      className="mt-2 w-44 rounded-xl border border-border bg-surface-2 px-3 py-2 text-base font-semibold text-text outline-none transition focus:border-accent"
+                      value={rangeForm.to}
+                      onChange={(event) =>
+                        setRangeForm({ ...rangeForm, to: event.target.value })
+                      }
+                    />
+                  </label>
+                  <Button type="submit" disabled={isRangeLoading}>
+                    {isRangeLoading ? "در حال دریافت..." : "نمایش"}
+                  </Button>
+                </form>
+              </div>
+
+              <div className="mt-5 grid grid-cols-[repeat(auto-fit,minmax(12rem,1fr))] gap-4">
+                <StatCard label="تعداد سفارش‌ها">
+                  {faNum(rangeReport?.orders_count ?? 0)}
+                </StatCard>
+                <StatCard label="جمع سفارش‌ها">
+                  <RevenueWithUnit value={rangeReport?.orders_total} />
+                </StatCard>
+                <StatCard label="تعداد کل آیتم‌ها">
+                  {faNum(rangeReport?.items_quantity_total ?? 0)}
+                </StatCard>
+                <StatCard label="مبلغ کل آیتم‌ها">
+                  <RevenueWithUnit value={rangeReport?.items_amount_total} />
+                </StatCard>
+              </div>
+
+              <div className="mt-5 overflow-hidden rounded-xl border border-border">
+                <div className="grid grid-cols-[1fr_0.6fr_0.8fr] gap-3 border-b border-border bg-surface-2 px-4 py-3 text-sm font-black text-muted">
+                  <div>آیتم</div>
+                  <div>تعداد</div>
+                  <div className="text-left">مبلغ</div>
+                </div>
+                <div className="max-h-80 overflow-y-auto">
+                  {isRangeLoading ? (
+                    <div className="px-4 py-6 text-center text-sm font-semibold text-muted">
+                      در حال دریافت گزارش...
+                    </div>
+                  ) : !rangeReport || rangeReport.items.length === 0 ? (
+                    <div className="px-4 py-6 text-center text-sm font-semibold text-muted">
+                      آیتمی در این بازه ثبت نشده است.
+                    </div>
+                  ) : (
+                    rangeReport.items.map((item) => (
+                      <div
+                        key={item.product_name}
+                        className="grid grid-cols-[1fr_0.6fr_0.8fr] gap-3 border-b border-border/70 px-4 py-3 text-sm font-semibold last:border-b-0"
+                      >
+                        <div className="truncate text-text">{item.product_name}</div>
+                        <div className="text-muted">{faNum(item.quantity)}</div>
+                        <RevenueWithUnit
+                          value={item.amount}
                           className="justify-end text-left font-black text-text"
                         />
                       </div>
