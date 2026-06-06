@@ -70,7 +70,15 @@ describe("Payment form", () => {
       note: null,
     });
 
-    render(<OrderPanel orderId={7} onClose={vi.fn()} />);
+    render(
+      <OrderPanel
+        orderId={7}
+        onClose={vi.fn()}
+        selectedCategoryId={null}
+        products={[]}
+        isProductsLoading={false}
+      />,
+    );
 
     await screen.findByText("سبد سفارش");
     await user.click(screen.getByRole("button", { name: "کارت" }));

@@ -39,13 +39,13 @@ type Order = {
   payments: Payment[];
 };
 
-type Category = {
+export type Category = {
   id: number;
   name: string;
   sort_order: number;
 };
 
-type Product = {
+export type Product = {
   id: number;
   category: number;
   name: string;
@@ -63,6 +63,10 @@ type Table = {
 type OrderPanelProps = {
   orderId: number;
   onClose: () => void;
+  // Category selection + product list are owned by App (sidebar drives them).
+  selectedCategoryId: number | null;
+  products: Product[];
+  isProductsLoading: boolean;
 };
 
 const statusMeta: Record<
@@ -101,12 +105,15 @@ function mutationError(error: unknown) {
   return "خطا در ارتباط با سرور";
 }
 
-export function OrderPanel({ orderId, onClose }: OrderPanelProps) {
+export function OrderPanel({
+  orderId,
+  onClose,
+  selectedCategoryId,
+  products,
+  isProductsLoading,
+}: OrderPanelProps) {
   const [order, setOrder] = useState<Order | null>(null);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
   const [tables, setTables] = useState<Table[]>([]);
-  const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
   const [selectedTableId, setSelectedTableId] = useState("");
   const [sourceTableId, setSourceTableId] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
@@ -116,15 +123,10 @@ export function OrderPanel({ orderId, onClose }: OrderPanelProps) {
   const [splitMethod, setSplitMethod] = useState<PaymentMethod>("cash");
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isProductsLoading, setIsProductsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const isLocked = order?.status === "paid" || order?.status === "closed";
   const currentStatus = order ? statusMeta[order.status] : null;
-
-  const sortedCategories = useMemo(() => {
-    return [...categories].sort((a, b) => a.sort_order - b.sort_order || a.id - b.id);
-  }, [categories]);
 
   const sortedProducts = useMemo(() => {
     return [...products].sort((a, b) => a.sort_order - b.sort_order || a.id - b.id);
@@ -178,17 +180,6 @@ export function OrderPanel({ orderId, onClose }: OrderPanelProps) {
     setSourceTableId("");
   }, [orderId]);
 
-  const loadProducts = useCallback(async (categoryId: number) => {
-    setIsProductsLoading(true);
-
-    try {
-      const nextProducts = await apiGet<Product[]>(`/products/?category=${categoryId}`);
-      setProducts(nextProducts);
-    } finally {
-      setIsProductsLoading(false);
-    }
-  }, []);
-
   useEffect(() => {
     let ignore = false;
 
@@ -197,19 +188,14 @@ export function OrderPanel({ orderId, onClose }: OrderPanelProps) {
       setError(null);
 
       try {
-        const [nextOrder, nextCategories, nextTables] = await Promise.all([
+        const [nextOrder, nextTables] = await Promise.all([
           apiGet<Order>(`/orders/${orderId}/`),
-          apiGet<Category[]>("/categories/"),
           apiGet<Table[]>("/tables/"),
         ]);
 
         if (!ignore) {
           setOrder(nextOrder);
-          setCategories(nextCategories);
           setTables(nextTables);
-          // Start on the category list; products load when a category is opened.
-          setSelectedCategoryId(null);
-          setProducts([]);
         }
       } catch {
         if (!ignore) {
@@ -246,28 +232,6 @@ export function OrderPanel({ orderId, onClose }: OrderPanelProps) {
       setIsSubmitting(false);
     }
   };
-
-  const handleCategorySelect = (categoryId: number) => {
-    if (categoryId === selectedCategoryId) {
-      return;
-    }
-
-    setSelectedCategoryId(categoryId);
-    setError(null);
-    void loadProducts(categoryId).catch(() => {
-      setError("دریافت محصولات ناموفق بود");
-    });
-  };
-
-  const backToCategories = () => {
-    setSelectedCategoryId(null);
-    setProducts([]);
-  };
-
-  const selectedCategory = useMemo(
-    () => sortedCategories.find((category) => category.id === selectedCategoryId) ?? null,
-    [sortedCategories, selectedCategoryId],
-  );
 
   const addProduct = (product: Product) => {
     if (isLocked || !product.is_available) {
@@ -496,86 +460,52 @@ export function OrderPanel({ orderId, onClose }: OrderPanelProps) {
         </div>
       ) : (
         <div className="grid min-h-[calc(100vh-15rem)] grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_26rem]">
-          <section className="order-2 min-h-0 rounded-2xl border border-border bg-surface p-5 xl:order-1">
+          <section className="order-2 flex min-h-0 flex-col rounded-2xl border border-border bg-surface p-5 xl:order-1">
+            {/* Category is chosen from the sidebar; this panel only renders the
+                items of the selected category, compact so more fit at once. */}
             {selectedCategoryId === null ? (
-              sortedCategories.length === 0 ? (
-                <div className="rounded-xl border border-border bg-surface-2 p-6 text-muted">
-                  دسته‌بندی ثبت نشده است.
-                </div>
-              ) : (
-                <>
-                  <h3 className="text-lg font-black text-text">دسته‌بندی‌ها</h3>
-                  <div className="mt-4 grid grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] gap-3">
-                    {sortedCategories.map((category) => (
-                      <button
-                        key={category.id}
-                        type="button"
-                        className="min-h-24 rounded-2xl border border-border bg-surface-2 p-4 text-center text-base font-black text-text transition hover:-translate-y-0.5 hover:border-accent/50 hover:bg-[var(--surface-3)] focus:outline-none focus:ring-2 focus:ring-accent"
-                        onClick={() => handleCategorySelect(category.id)}
-                      >
-                        {category.name}
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )
+              <div className="rounded-xl border border-border bg-surface-2 p-6 text-muted">
+                یک دسته‌بندی را از نوار کناری انتخاب کنید.
+              </div>
+            ) : isProductsLoading ? (
+              <div className="rounded-xl border border-border bg-surface-2 p-6 text-muted">
+                در حال دریافت محصولات...
+              </div>
+            ) : sortedProducts.length === 0 ? (
+              <div className="rounded-xl border border-border bg-surface-2 p-6 text-muted">
+                محصولی برای این دسته‌بندی ثبت نشده است.
+              </div>
             ) : (
-              <>
-                <div className="flex items-center gap-3">
-                  <button
-                    type="button"
-                    className="grid h-10 w-10 flex-none place-items-center rounded-xl border border-border bg-surface-2 text-lg font-black text-muted transition hover:bg-[var(--surface-3)] hover:text-text"
-                    aria-label="بازگشت به دسته‌بندی‌ها"
-                    onClick={backToCategories}
-                  >
-                    ›
-                  </button>
-                  <h3 className="text-lg font-black text-text">
-                    {selectedCategory?.name ?? "محصولات"}
-                  </h3>
-                </div>
+              <div className="grid grid-cols-[repeat(auto-fill,minmax(7rem,1fr))] gap-2">
+                {sortedProducts.map((product) => {
+                  const disabled = isLocked || !product.is_available || isSubmitting;
 
-                {isProductsLoading ? (
-                  <div className="mt-4 rounded-xl border border-border bg-surface-2 p-6 text-muted">
-                    در حال دریافت محصولات...
-                  </div>
-                ) : sortedProducts.length === 0 ? (
-                  <div className="mt-4 rounded-xl border border-border bg-surface-2 p-6 text-muted">
-                    محصولی برای این دسته‌بندی ثبت نشده است.
-                  </div>
-                ) : (
-                  <div className="mt-4 grid grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] gap-3">
-                    {sortedProducts.map((product) => {
-                      const disabled = isLocked || !product.is_available || isSubmitting;
-
-                      return (
-                        <button
-                          key={product.id}
-                          type="button"
-                          className={[
-                            "min-h-32 rounded-2xl border p-4 text-right transition focus:outline-none focus:ring-2 focus:ring-accent",
-                            disabled
-                              ? "cursor-not-allowed border-border bg-surface-2 opacity-45"
-                              : "border-border bg-surface-2 hover:-translate-y-0.5 hover:border-accent/50 hover:bg-[var(--surface-3)]",
-                          ].join(" ")}
-                          disabled={disabled}
-                          onClick={() => addProduct(product)}
-                        >
-                          <div className="line-clamp-2 min-h-12 text-base font-black text-text">
-                            {product.name}
-                          </div>
-                          <div className="mt-4 flex items-center justify-between gap-2">
-                            <span className="text-sm font-semibold text-muted">
-                              {formatMoney(product.price)}
-                            </span>
-                            {!product.is_available && <Badge>ناموجود</Badge>}
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </>
+                  return (
+                    <button
+                      key={product.id}
+                      type="button"
+                      className={[
+                        "flex min-h-20 flex-col justify-between rounded-xl border p-2.5 text-right transition focus:outline-none focus:ring-2 focus:ring-accent",
+                        disabled
+                          ? "cursor-not-allowed border-border bg-surface-2 opacity-45"
+                          : "border-border bg-surface-2 hover:-translate-y-0.5 hover:border-accent/50 hover:bg-[var(--surface-3)]",
+                      ].join(" ")}
+                      disabled={disabled}
+                      onClick={() => addProduct(product)}
+                    >
+                      <div className="line-clamp-2 text-sm font-black text-text">
+                        {product.name}
+                      </div>
+                      <div className="mt-2 flex items-center justify-between gap-1">
+                        <span className="text-xs font-semibold text-muted">
+                          {formatMoney(product.price)}
+                        </span>
+                        {!product.is_available && <Badge>ناموجود</Badge>}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
             )}
           </section>
 

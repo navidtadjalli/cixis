@@ -125,6 +125,7 @@ class TableSerializer(serializers.ModelSerializer):
 
     active_order_id = serializers.SerializerMethodField()
     active_order_total = serializers.SerializerMethodField()
+    active_order_created_at = serializers.SerializerMethodField()
     status = serializers.SerializerMethodField()
 
     class Meta:
@@ -135,6 +136,7 @@ class TableSerializer(serializers.ModelSerializer):
             "sort_order",
             "active_order_id",
             "active_order_total",
+            "active_order_created_at",
             "status",
         ]
         read_only_fields = ["id"]
@@ -152,6 +154,10 @@ class TableSerializer(serializers.ModelSerializer):
     def get_active_order_total(self, obj):
         order = self._active(obj)
         return order.subtotal if order else 0
+
+    def get_active_order_created_at(self, obj):
+        order = self._active(obj)
+        return order.created_at if order else None
 
     def get_status(self, obj):
         return services.table_status(self._active(obj))
