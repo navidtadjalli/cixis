@@ -171,7 +171,12 @@ export function OrderPanel({
     setTables(nextTables);
     setSelectedTableId("");
     setSourceTableId("");
-  }, [orderId]);
+    // Once the order is fully settled there's nothing left to do here, so drop
+    // back to the ordering view automatically.
+    if (nextOrder.status === "paid") {
+      onClose();
+    }
+  }, [orderId, onClose]);
 
   useEffect(() => {
     let ignore = false;
