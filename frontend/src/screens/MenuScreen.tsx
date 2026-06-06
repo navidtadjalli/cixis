@@ -31,6 +31,7 @@ type ProductFormState = {
   price: string;
   category: string;
   description: string;
+  is_available: boolean;
 };
 
 type ProductFormValues = {
@@ -38,6 +39,7 @@ type ProductFormValues = {
   price: number;
   category: number;
   description: string;
+  is_available: boolean;
 };
 
 type DialogState =
@@ -59,6 +61,7 @@ const emptyProductForm = (categoryId: number | null): ProductFormState => ({
   price: "",
   category: categoryId === null ? "" : String(categoryId),
   description: "",
+  is_available: true,
 });
 
 function productFormFromProduct(product: Product): ProductFormState {
@@ -67,6 +70,7 @@ function productFormFromProduct(product: Product): ProductFormState {
     price: String(product.price),
     category: String(product.category),
     description: product.description ?? "",
+    is_available: product.is_available,
   };
 }
 
@@ -308,7 +312,9 @@ export function MenuScreen() {
       return { error: "دسته‌بندی محصول را انتخاب کنید" };
     }
 
-    return { values: { name, price, category, description } };
+    return {
+      values: { name, price, category, description, is_available: form.is_available },
+    };
   };
 
   const submitProduct = () => {
@@ -330,42 +336,12 @@ export function MenuScreen() {
           name: parsed.values.name,
           price: parsed.values.price,
           category: parsed.values.category,
+          is_available: parsed.values.is_available,
         });
       }
 
       await refreshProducts();
     });
-  };
-
-  const toggleAvailability = async (product: Product) => {
-    if (isSubmitting) {
-      return;
-    }
-
-    const nextAvailability = !product.is_available;
-    setProducts((currentProducts) =>
-      currentProducts.map((item) =>
-        item.id === product.id
-          ? { ...item, is_available: nextAvailability }
-          : item,
-      ),
-    );
-
-    try {
-      await apiPatch<Product>(`/products/${product.id}/`, {
-        is_available: nextAvailability,
-      });
-    } catch (caughtError) {
-      setProducts((currentProducts) =>
-        currentProducts.map((item) =>
-          item.id === product.id ? { ...item, is_available: product.is_available } : item,
-        ),
-      );
-      showToast({
-        tone: "bad",
-        message: apiMessage(caughtError, "تغییر وضعیت محصول ناموفق بود"),
-      });
-    }
   };
 
   const submitDeleteProduct = () => {
@@ -577,16 +553,25 @@ export function MenuScreen() {
             ) : (
               <div className="grid grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] gap-3 p-4">
                 {sortedProducts.map((product) => (
-                  <article
+                  <button
                     key={product.id}
+                    type="button"
+                    aria-label={`ویرایش ${product.name}`}
+                    onClick={() =>
+                      setDialog({
+                        type: "edit-product",
+                        product,
+                        form: productFormFromProduct(product),
+                      })
+                    }
                     className={[
-                      "flex flex-col rounded-xl border p-3 transition",
+                      "flex flex-col rounded-xl border p-3 text-right transition hover:border-accent focus:border-accent focus:outline-none",
                       product.is_available
                         ? "border-border bg-surface-2"
                         : "border-border bg-surface-2 opacity-70",
                     ].join(" ")}
                   >
-                    <div className="flex items-start justify-between gap-2">
+                    <div className="flex w-full items-start justify-between gap-2">
                       <h3 className="min-w-0 truncate text-base font-black text-text">
                         {product.name}
                       </h3>
@@ -598,55 +583,7 @@ export function MenuScreen() {
                     <div className="mt-2 text-lg font-black text-accent">
                       {formatMoney(product.price)}
                     </div>
-
-                    <div className="mt-3 flex items-center gap-1.5">
-                      <button
-                        type="button"
-                        className={[
-                          "inline-flex min-h-8 items-center gap-1.5 rounded-lg border px-2 text-xs font-bold transition",
-                          product.is_available
-                            ? "border-good/30 bg-good/10 text-good"
-                            : "border-border bg-[var(--surface-3)] text-muted",
-                        ].join(" ")}
-                        onClick={() => void toggleAvailability(product)}
-                      >
-                        <span
-                          className={[
-                            "relative h-4 w-7 rounded-full transition",
-                            product.is_available ? "bg-good/60" : "bg-border",
-                          ].join(" ")}
-                        >
-                          <span
-                            className={[
-                              "absolute top-1 h-2 w-2 rounded-full bg-text transition",
-                              product.is_available ? "right-4" : "right-1",
-                            ].join(" ")}
-                          />
-                        </span>
-                        وضعیت
-                      </button>
-                      <Button
-                        variant="ghost"
-                        className="min-h-8 px-2 text-xs"
-                        onClick={() =>
-                          setDialog({
-                            type: "edit-product",
-                            product,
-                            form: productFormFromProduct(product),
-                          })
-                        }
-                      >
-                        ویرایش
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        className="min-h-8 border-bad/30 bg-bad/10 px-2 text-xs text-bad hover:bg-bad/20"
-                        onClick={() => setDialog({ type: "delete-product", product })}
-                      >
-                        حذف
-                      </Button>
-                    </div>
-                  </article>
+                  </button>
                 ))}
               </div>
             )}
@@ -793,6 +730,41 @@ export function MenuScreen() {
                 </select>
               </div>
 
+              <div className="md:col-span-2">
+                <span className="block text-sm font-semibold text-muted">وضعیت</span>
+                <button
+                  type="button"
+                  aria-pressed={dialog.form.is_available}
+                  onClick={() =>
+                    updateProductForm({
+                      ...dialog.form,
+                      is_available: !dialog.form.is_available,
+                    })
+                  }
+                  className={[
+                    "mt-2 inline-flex min-h-11 items-center gap-2 rounded-xl border px-4 text-base font-bold transition",
+                    dialog.form.is_available
+                      ? "border-good/30 bg-good/10 text-good"
+                      : "border-border bg-[var(--surface-3)] text-muted",
+                  ].join(" ")}
+                >
+                  <span
+                    className={[
+                      "relative h-5 w-9 rounded-full transition",
+                      dialog.form.is_available ? "bg-good/60" : "bg-border",
+                    ].join(" ")}
+                  >
+                    <span
+                      className={[
+                        "absolute top-1 h-3 w-3 rounded-full bg-text transition",
+                        dialog.form.is_available ? "right-5" : "right-1",
+                      ].join(" ")}
+                    />
+                  </span>
+                  {dialog.form.is_available ? "موجود" : "ناموجود"}
+                </button>
+              </div>
+
               {dialog.type === "add-product" && (
                 <div className="md:col-span-2">
                   <label
@@ -820,6 +792,19 @@ export function MenuScreen() {
               <Button className="flex-1" variant="ghost" onClick={closeDialog}>
                 انصراف
               </Button>
+              {dialog.type === "edit-product" && (
+                <Button
+                  type="button"
+                  className="flex-1 border-bad/30 bg-bad/10 text-bad hover:bg-bad/20"
+                  variant="ghost"
+                  disabled={isSubmitting}
+                  onClick={() =>
+                    setDialog({ type: "delete-product", product: dialog.product })
+                  }
+                >
+                  حذف
+                </Button>
+              )}
               <Button className="flex-1" type="submit" disabled={isSubmitting}>
                 ذخیره
               </Button>
