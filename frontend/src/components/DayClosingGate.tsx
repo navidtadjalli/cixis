@@ -132,6 +132,9 @@ function ChangePasswordForm({
               placeholder="رمز عبور فعلی"
               className="mt-6 h-12 w-full rounded-xl border border-border bg-surface-2 px-4 text-center text-lg text-text outline-none focus:border-accent"
             />
+            <p className="mt-2 text-xs text-muted">
+              رمز فعلی را فراموش کرده‌اید؟ کد اصلی را به‌جای آن وارد کنید.
+            </p>
             <input
               type="password"
               value={next}
