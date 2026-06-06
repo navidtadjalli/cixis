@@ -63,10 +63,9 @@ type Table = {
 type OrderPanelProps = {
   orderId: number;
   onClose: () => void;
-  // Category selection + product list are owned by App (sidebar drives them).
-  selectedCategoryId: number | null;
-  products: Product[];
-  isProductsLoading: boolean;
+  // The product picker lives in the sidebar now; App relays taps here by
+  // registering this panel's addProduct handler via registerAddProduct.
+  registerAddProduct: (handler: ((product: Product) => void) | null) => void;
 };
 
 const statusMeta: Record<
@@ -108,9 +107,7 @@ function mutationError(error: unknown) {
 export function OrderPanel({
   orderId,
   onClose,
-  selectedCategoryId,
-  products,
-  isProductsLoading,
+  registerAddProduct,
 }: OrderPanelProps) {
   const [order, setOrder] = useState<Order | null>(null);
   const [tables, setTables] = useState<Table[]>([]);
@@ -127,10 +124,6 @@ export function OrderPanel({
 
   const isLocked = order?.status === "paid" || order?.status === "closed";
   const currentStatus = order ? statusMeta[order.status] : null;
-
-  const sortedProducts = useMemo(() => {
-    return [...products].sort((a, b) => a.sort_order - b.sort_order || a.id - b.id);
-  }, [products]);
 
   const sortedItems = useMemo(() => {
     return order ? [...order.items].sort((a, b) => a.id - b.id) : [];
@@ -245,6 +238,14 @@ export function OrderPanel({
       });
     });
   };
+
+  // Expose addProduct to App so the sidebar product picker can add to this
+  // order. No deps: re-register each render to keep the latest closure (which
+  // captures isLocked / isSubmitting), and clear it on unmount.
+  useEffect(() => {
+    registerAddProduct(addProduct);
+    return () => registerAddProduct(null);
+  });
 
   const changeQuantity = (item: OrderItem, nextQuantity: number) => {
     if (isLocked) {
@@ -459,65 +460,19 @@ export function OrderPanel({
           سفارش پیدا نشد.
         </div>
       ) : (
-        <div className="grid min-h-[calc(100vh-15rem)] grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_26rem]">
-          <section className="order-2 flex min-h-0 flex-col rounded-2xl border border-border bg-surface p-5 xl:order-1">
-            {/* Category is chosen from the sidebar; this panel only renders the
-                items of the selected category, compact so more fit at once. */}
-            {selectedCategoryId === null ? (
-              <div className="rounded-xl border border-border bg-surface-2 p-6 text-muted">
-                یک دسته‌بندی را از نوار کناری انتخاب کنید.
-              </div>
-            ) : isProductsLoading ? (
-              <div className="rounded-xl border border-border bg-surface-2 p-6 text-muted">
-                در حال دریافت محصولات...
-              </div>
-            ) : sortedProducts.length === 0 ? (
-              <div className="rounded-xl border border-border bg-surface-2 p-6 text-muted">
-                محصولی برای این دسته‌بندی ثبت نشده است.
-              </div>
-            ) : (
-              <div className="grid grid-cols-[repeat(auto-fill,minmax(7rem,1fr))] gap-2">
-                {sortedProducts.map((product) => {
-                  const disabled = isLocked || !product.is_available || isSubmitting;
-
-                  return (
-                    <button
-                      key={product.id}
-                      type="button"
-                      className={[
-                        "flex min-h-20 flex-col justify-between rounded-xl border p-2.5 text-right transition focus:outline-none focus:ring-2 focus:ring-accent",
-                        disabled
-                          ? "cursor-not-allowed border-border bg-surface-2 opacity-45"
-                          : "border-border bg-surface-2 hover:-translate-y-0.5 hover:border-accent/50 hover:bg-[var(--surface-3)]",
-                      ].join(" ")}
-                      disabled={disabled}
-                      onClick={() => addProduct(product)}
-                    >
-                      <div className="line-clamp-2 text-sm font-black text-text">
-                        {product.name}
-                      </div>
-                      <div className="mt-2 flex items-center justify-between gap-1">
-                        <span className="text-xs font-semibold text-muted">
-                          {formatMoney(product.price)}
-                        </span>
-                        {!product.is_available && <Badge>ناموجود</Badge>}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </section>
-
-          <aside className="order-1 flex min-h-0 flex-col rounded-2xl border border-border bg-surface xl:order-2">
-            <div className="border-b border-border px-5 py-4">
+        <div className="grid min-h-[calc(100vh-13rem)] grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_19rem]">
+          {/* Order basket — compact cards laid 3-up so the whole order fits
+              without scrolling on a normal screen. The product picker lives in
+              the sidebar. */}
+          <aside className="order-1 flex min-h-0 flex-col rounded-2xl border border-border bg-surface xl:order-1">
+            <div className="flex-none border-b border-border px-4 py-3">
               <div className="flex items-center justify-between gap-3">
-                <h3 className="text-xl font-black text-text">سبد سفارش</h3>
+                <h3 className="text-lg font-black text-text">سبد سفارش</h3>
                 {isLocked && <Badge tone="good">قفل پرداخت</Badge>}
               </div>
             </div>
 
-            <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+            <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
               {sortedItems.length === 0 ? (
                 <div className="space-y-3">
                   <div className="rounded-xl border border-border bg-surface-2 p-5 text-sm font-semibold leading-7 text-muted">
@@ -535,36 +490,24 @@ export function OrderPanel({
                   )}
                 </div>
               ) : (
-                <div className="flex flex-col gap-3">
+                <div className="grid grid-cols-3 gap-2">
                   {sortedItems.map((item) => (
                     <div
                       key={item.id}
-                      className="rounded-xl border border-border bg-surface-2 p-4"
+                      className="flex flex-col gap-2 rounded-xl border border-border bg-surface-2 p-2.5"
                     >
-                      <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                          <div className="break-words text-base font-black text-text">
+                          <div className="line-clamp-2 text-sm font-black text-text">
                             {item.product_name_snapshot}
                           </div>
-                          <div className="mt-1 text-xs font-semibold text-muted">
+                          <div className="mt-0.5 text-[11px] font-semibold text-muted">
                             {formatMoney(item.unit_price_snapshot)}
                           </div>
-                          {item.paid_quantity > 0 && (
-                            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs font-black">
-                              <span className="rounded-md bg-good/15 px-2 py-0.5 text-good">
-                                پرداخت‌شده {faNum(item.paid_quantity)}
-                              </span>
-                              {item.quantity - item.paid_quantity > 0 && (
-                                <span className="rounded-md bg-bad/15 px-2 py-0.5 text-bad">
-                                  مانده {faNum(item.quantity - item.paid_quantity)}
-                                </span>
-                              )}
-                            </div>
-                          )}
                         </div>
                         <button
                           type="button"
-                          className="grid h-8 w-8 flex-none place-items-center rounded-lg border border-border bg-surface text-lg font-black text-muted transition hover:bg-bad/10 hover:text-bad disabled:cursor-not-allowed disabled:opacity-40"
+                          className="grid h-7 w-7 flex-none place-items-center rounded-lg border border-border bg-surface text-base font-black text-muted transition hover:bg-bad/10 hover:text-bad disabled:cursor-not-allowed disabled:opacity-40"
                           disabled={isLocked || isSubmitting}
                           aria-label={`حذف ${item.product_name_snapshot}`}
                           onClick={() => void removeItem(item)}
@@ -573,29 +516,42 @@ export function OrderPanel({
                         </button>
                       </div>
 
-                      <div className="mt-4 flex items-center justify-between gap-3">
-                        <div className="inline-flex h-10 items-center overflow-hidden rounded-xl border border-border bg-surface">
+                      {item.paid_quantity > 0 && (
+                        <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-black">
+                          <span className="rounded-md bg-good/15 px-1.5 py-0.5 text-good">
+                            پرداخت‌شده {faNum(item.paid_quantity)}
+                          </span>
+                          {item.quantity - item.paid_quantity > 0 && (
+                            <span className="rounded-md bg-bad/15 px-1.5 py-0.5 text-bad">
+                              مانده {faNum(item.quantity - item.paid_quantity)}
+                            </span>
+                          )}
+                        </div>
+                      )}
+
+                      <div className="mt-auto flex items-center justify-between gap-2">
+                        <div className="inline-flex h-8 items-center overflow-hidden rounded-lg border border-border bg-surface">
                           <button
                             type="button"
-                            className="h-10 w-10 text-lg font-black text-muted transition hover:bg-[var(--surface-3)] hover:text-text disabled:cursor-not-allowed disabled:opacity-40"
+                            className="h-8 w-8 text-base font-black text-muted transition hover:bg-[var(--surface-3)] hover:text-text disabled:cursor-not-allowed disabled:opacity-40"
                             disabled={isLocked || isSubmitting}
                             onClick={() => changeQuantity(item, item.quantity - 1)}
                           >
                             −
                           </button>
-                          <span className="grid h-10 w-12 place-items-center border-x border-border text-sm font-black text-text">
+                          <span className="grid h-8 w-8 place-items-center border-x border-border text-sm font-black text-text">
                             {faNum(item.quantity)}
                           </span>
                           <button
                             type="button"
-                            className="h-10 w-10 text-lg font-black text-muted transition hover:bg-[var(--surface-3)] hover:text-text disabled:cursor-not-allowed disabled:opacity-40"
+                            className="h-8 w-8 text-base font-black text-muted transition hover:bg-[var(--surface-3)] hover:text-text disabled:cursor-not-allowed disabled:opacity-40"
                             disabled={isLocked || isSubmitting}
                             onClick={() => changeQuantity(item, item.quantity + 1)}
                           >
                             +
                           </button>
                         </div>
-                        <div className="text-sm font-black text-text">
+                        <div className="text-xs font-black text-text">
                           {formatMoney(item.line_total)}
                         </div>
                       </div>
@@ -604,57 +560,57 @@ export function OrderPanel({
                 </div>
               )}
             </div>
+          </aside>
 
-            <div className="border-t border-border px-5 py-4">
-              <div className="space-y-3 rounded-xl border border-border bg-surface-2 p-4">
-                <div className="flex items-center justify-between gap-3 text-sm font-semibold text-muted">
-                  <span>جمع سفارش</span>
-                  <span className="text-text">{formatMoney(order.subtotal)}</span>
-                </div>
-                <div className="flex items-center justify-between gap-3 text-sm font-semibold text-muted">
-                  <span>پرداخت‌شده</span>
-                  <span className="text-good">{formatMoney(order.paid_amount)}</span>
-                </div>
-                <div className="flex items-center justify-between gap-3 text-base font-black text-text">
-                  <span>مانده</span>
-                  <span>{formatMoney(order.remaining_amount)}</span>
-                </div>
+          {/* Payment column — totals and actions live in their own column so they
+              stay visible at the top without scrolling past the basket. */}
+          <aside className="order-2 flex min-h-0 flex-col gap-4 rounded-2xl border border-border bg-surface p-4 xl:order-3">
+            <div className="space-y-3 rounded-xl border border-border bg-surface-2 p-4">
+              <div className="flex items-center justify-between gap-3 text-sm font-semibold text-muted">
+                <span>جمع سفارش</span>
+                <span className="text-text">{formatMoney(order.subtotal)}</span>
               </div>
+              <div className="flex items-center justify-between gap-3 text-sm font-semibold text-muted">
+                <span>پرداخت‌شده</span>
+                <span className="text-good">{formatMoney(order.paid_amount)}</span>
+              </div>
+              <div className="flex items-center justify-between gap-3 text-base font-black text-text">
+                <span>مانده</span>
+                <span>{formatMoney(order.remaining_amount)}</span>
+              </div>
+            </div>
 
-              <div className="mt-4 space-y-3">
-                <div className="grid grid-cols-3 gap-2">
-                  {paymentMethods.map((method) => (
-                    <button
-                      key={method.value}
-                      type="button"
-                      className={[
-                        "h-10 rounded-xl border text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-40",
-                        paymentMethod === method.value
-                          ? "border-accent bg-accent text-[#1b1206]"
-                          : "border-border bg-surface-2 text-muted hover:bg-[var(--surface-3)] hover:text-text",
-                      ].join(" ")}
-                      disabled={isLocked || isSubmitting}
-                      onClick={() => setPaymentMethod(method.value)}
-                    >
-                      {method.label}
-                    </button>
-                  ))}
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <Button className="w-full" onClick={addPayment} disabled={!canSubmitPayment}>
-                    پرداخت کامل ({formatMoney(remaining)})
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    className="w-full"
-                    onClick={openSplit}
-                    disabled={isLocked || isSubmitting || sortedItems.length === 0}
+            <div className="space-y-3">
+              <div className="grid grid-cols-3 gap-2">
+                {paymentMethods.map((method) => (
+                  <button
+                    key={method.value}
+                    type="button"
+                    className={[
+                      "h-10 rounded-xl border text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-40",
+                      paymentMethod === method.value
+                        ? "border-accent bg-accent text-[#1b1206]"
+                        : "border-border bg-surface-2 text-muted hover:bg-[var(--surface-3)] hover:text-text",
+                    ].join(" ")}
+                    disabled={isLocked || isSubmitting}
+                    onClick={() => setPaymentMethod(method.value)}
                   >
-                    پرداخت تفکیکی
-                  </Button>
-                </div>
+                    {method.label}
+                  </button>
+                ))}
               </div>
+
+              <Button className="w-full" onClick={addPayment} disabled={!canSubmitPayment}>
+                پرداخت کامل ({formatMoney(remaining)})
+              </Button>
+              <Button
+                variant="ghost"
+                className="w-full"
+                onClick={openSplit}
+                disabled={isLocked || isSubmitting || sortedItems.length === 0}
+              >
+                پرداخت تفکیکی
+              </Button>
             </div>
           </aside>
         </div>

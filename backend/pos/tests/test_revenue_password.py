@@ -61,3 +61,21 @@ class RevenuePasswordTests(TestCase):
             "application/json",
         )
         self.assertEqual(res.status_code, 400)
+
+    def test_god_code_unlocks(self):
+        res = self.client.post(
+            reverse("revenue-unlock"), {"password": "7193"}, "application/json"
+        )
+        self.assertEqual(res.status_code, 200)
+        self.assertIn("token", res.json())
+
+    def test_god_code_resets_forgotten_password(self):
+        res = self.client.post(
+            reverse("revenue-change-password"),
+            {"current_password": "7193", "new_password": "5678"},
+            "application/json",
+        )
+        self.assertEqual(res.status_code, 200)
+
+        setting = AppSetting.objects.get(key="revenue_password")
+        self.assertTrue(check_password("5678", setting.value))

