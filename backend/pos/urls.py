@@ -19,6 +19,7 @@ urlpatterns = [
     path("day-closing/preview/", day_closing.preview, name="day-closing-preview"),
     path("day-closing/close/", day_closing.close, name="day-closing-close"),
     path("reports/monthly/", reports.monthly, name="reports-monthly"),
+    path("reports/range/", reports.date_range, name="reports-range"),
     path(
         "resources/purchases/",
         ResourcePurchaseListCreate.as_view(),
