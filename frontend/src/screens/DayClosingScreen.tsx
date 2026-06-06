@@ -9,6 +9,7 @@ import camelIcon from "../assets/camel.png";
 import { ApiError, apiGet, apiPost } from "../lib/api";
 import { faNum, money, UNIT } from "../lib/format";
 import { Badge, Button, Modal } from "../components/ui";
+import { JalaliDateInput } from "../components/JalaliDateInput";
 
 type UnresolvedOrder = {
   id: number;
@@ -611,24 +612,18 @@ export function DayClosingScreen() {
                 >
                   <label className="block text-sm font-semibold text-muted">
                     از تاریخ
-                    <input
-                      type="date"
-                      className="mt-2 w-44 rounded-xl border border-border bg-surface-2 px-3 py-2 text-base font-semibold text-text outline-none transition focus:border-accent"
+                    <JalaliDateInput
                       value={rangeForm.from}
-                      onChange={(event) =>
-                        setRangeForm({ ...rangeForm, from: event.target.value })
+                      onChange={(iso) =>
+                        setRangeForm({ ...rangeForm, from: iso })
                       }
                     />
                   </label>
                   <label className="block text-sm font-semibold text-muted">
                     تا تاریخ
-                    <input
-                      type="date"
-                      className="mt-2 w-44 rounded-xl border border-border bg-surface-2 px-3 py-2 text-base font-semibold text-text outline-none transition focus:border-accent"
+                    <JalaliDateInput
                       value={rangeForm.to}
-                      onChange={(event) =>
-                        setRangeForm({ ...rangeForm, to: event.target.value })
-                      }
+                      onChange={(iso) => setRangeForm({ ...rangeForm, to: iso })}
                     />
                   </label>
                   <Button type="submit" disabled={isRangeLoading}>
