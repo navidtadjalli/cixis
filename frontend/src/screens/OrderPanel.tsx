@@ -380,6 +380,25 @@ export function OrderPanel({ orderId, onClose }: OrderPanelProps) {
     });
   };
 
+  // Returning to the tables list discards an untouched order (no items, no
+  // payments) so the table reads as free instead of holding a phantom order.
+  const handleBack = async () => {
+    if (
+      order &&
+      sortedItems.length === 0 &&
+      !isLocked &&
+      order.payments.length === 0 &&
+      !isSubmitting
+    ) {
+      try {
+        await apiDelete<null>(`/orders/${orderId}/`);
+      } catch {
+        // Best effort — never trap the user on the order screen.
+      }
+    }
+    onClose();
+  };
+
   // An empty order (no items, not locked) can be discarded outright.
   const deleteEmptyOrder = async () => {
     if (isSubmitting) {
@@ -403,7 +422,8 @@ export function OrderPanel({ orderId, onClose }: OrderPanelProps) {
       <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-border bg-surface px-5 py-4">
         <div className="flex min-w-0 items-center gap-4">
           <Button
-            onClick={onClose}
+            onClick={() => void handleBack()}
+            disabled={isSubmitting}
             className="flex items-center gap-2 whitespace-nowrap"
           >
             <span aria-hidden="true" className="text-lg leading-none">→</span>
