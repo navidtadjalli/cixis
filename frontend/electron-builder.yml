@@ -57,12 +57,12 @@ extraResources:
 
 win:
   target: nsis
-  # Drop build/icon.ico here and set win.icon when an app icon is available.
+  icon: build/icon.ico
 
 linux:
   target: AppImage
   category: Office
-  # Drop build/icon.png (512x512) here and set linux.icon for a custom icon.
+  icon: build/icon.png
 
 nsis:
   oneClick: true
