@@ -72,7 +72,7 @@ export function Sidebar({
                 key={category.id}
                 type="button"
                 className={[
-                  "rounded-xl border px-3 py-1.5 text-sm font-bold transition",
+                  "rounded-xl border px-3 py-1.5 text-lg font-bold transition",
                   isActive
                     ? "border-accent bg-accent text-[#1b1206] shadow-lg shadow-black/20"
                     : "border-border bg-surface-2 text-text hover:bg-[var(--surface-3)]",
@@ -110,7 +110,7 @@ export function Sidebar({
                 key={product.id}
                 type="button"
                 className={[
-                  "flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-sm font-bold transition",
+                  "flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-base font-bold transition",
                   disabled
                     ? "cursor-not-allowed border-border bg-surface-2 text-muted opacity-50"
                     : "border-border bg-surface-2 text-text hover:border-accent/50 hover:bg-[var(--surface-3)]",
