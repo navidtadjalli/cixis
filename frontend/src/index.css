@@ -10,9 +10,11 @@
 :root {
   /* CiXiS dark palette — acceptance requires a dark theme. */
   --bg: #0f1115;
-  --surface: #171a21;
-  --surface-2: #1e222b;
-  --surface-3: #262b36;
+  /* Surfaces are translucent so the animated background shows through.
+     Text/border vars stay opaque to keep contrast. */
+  --surface: rgba(23, 26, 33, 0.72);
+  --surface-2: rgba(30, 34, 43, 0.74);
+  --surface-3: rgba(38, 43, 54, 0.78);
   --border: #2b313d;
   --line: #2b313d;
   --line-strong: #3a4250;
@@ -71,6 +73,83 @@ body {
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 14px;
+  }
+}
+
+/* ---- Animated background (clouds + green field + camels) ---- */
+/* All motion is GPU transform/opacity only — no JS loop, cheap to run. */
+.anim-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.anim-sky {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, #0f1115 0%, #15202b 45%, #1b2a23 100%);
+}
+
+.anim-cloud {
+  position: absolute;
+  left: 0;
+  will-change: transform;
+  transform: translateX(-220px) scale(var(--cloud-scale, 1));
+  animation-name: cloud-drift;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+@keyframes cloud-drift {
+  from {
+    transform: translateX(-220px) scale(var(--cloud-scale, 1));
+  }
+  to {
+    transform: translateX(100vw) scale(var(--cloud-scale, 1));
+  }
+}
+
+.anim-field {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 26%;
+  background:
+    linear-gradient(180deg, rgba(34, 84, 44, 0) 0%, rgba(34, 84, 44, 0.55) 35%, rgba(22, 60, 30, 0.7) 100%);
+}
+
+.anim-camel {
+  position: absolute;
+  left: 0;
+  opacity: 0.55;
+  will-change: transform;
+  animation-name: camel-walk;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+/* camels travelling the other way: reverse path + flip the sprite */
+.anim-camel--rev {
+  animation-direction: reverse;
+  transform: scaleX(-1);
+}
+
+@keyframes camel-walk {
+  from {
+    left: -90px;
+  }
+  to {
+    left: 100vw;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .anim-cloud,
+  .anim-camel {
+    animation: none;
   }
 }
 

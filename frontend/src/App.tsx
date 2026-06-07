@@ -10,6 +10,7 @@ import { TablesAdminScreen } from "./screens/TablesAdminScreen";
 import { apiGet } from "./lib/api";
 import { useRevenue } from "./context/RevenueContext";
 import { DayClosingGate } from "./components/DayClosingGate";
+import { AnimatedBackground } from "./components/AnimatedBackground";
 
 export default function App() {
   const { lock, unlocked } = useRevenue();
@@ -139,7 +140,9 @@ export default function App() {
   };
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-bg text-text" dir="rtl">
+    <div className="relative flex h-full min-h-0 flex-col overflow-hidden text-text" dir="rtl">
+      <AnimatedBackground camelCount={counts.occupied} />
+      <div className="relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden">
       <Titlebar />
       <div className="flex min-h-0 flex-1 overflow-hidden">
         <Sidebar
@@ -154,7 +157,7 @@ export default function App() {
           emptyCount={counts.empty}
         />
 
-        <main className="min-w-0 flex-1 overflow-x-hidden bg-bg">
+        <main className="min-w-0 flex-1 overflow-x-hidden">
           <div className="flex min-h-full flex-col">
             <header className="flex flex-none items-center gap-2 border-b border-border bg-surface-2 px-6 py-2">
               <nav className="flex flex-wrap gap-2" aria-label="ناوبری اصلی">
@@ -221,6 +224,7 @@ export default function App() {
             </section>
           </div>
         </main>
+      </div>
       </div>
     </div>
   );
