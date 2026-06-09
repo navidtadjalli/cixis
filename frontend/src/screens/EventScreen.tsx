@@ -1,6 +1,6 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { apiGet, apiPost } from "../lib/api";
-import { faNum, money, UNIT } from "../lib/format";
+import { enNum, faNum, money, UNIT } from "../lib/format";
 import { Badge, Button } from "../components/ui";
 
 type EventOrderStatus = "open" | "partially_paid" | "paid" | "closed";
@@ -47,6 +47,7 @@ function isActiveEventOrder(order: EventOrder): order is ActiveEventOrder {
 
 export function EventScreen({ onOpenOrder, onBack }: EventScreenProps) {
   const [orders, setOrders] = useState<EventOrder[]>([]);
+  const [search, setSearch] = useState("");
   const [label, setLabel] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -89,10 +90,24 @@ export function EventScreen({ onOpenOrder, onBack }: EventScreenProps) {
   }, []);
 
   const activeEventOrders = useMemo(() => {
+    const collator = new Intl.Collator("fa", { numeric: true });
+    const query = enNum(search.trim()).toLowerCase();
+
     return orders
       .filter(isActiveEventOrder)
-      .sort((a, b) => b.id - a.id);
-  }, [orders]);
+      .filter((order) => {
+        if (!query) {
+          return true;
+        }
+        const labelText = enNum(order.event_customer_label?.trim() ?? "").toLowerCase();
+        return labelText.startsWith(query);
+      })
+      .sort((a, b) => {
+        const aLabel = a.event_customer_label?.trim() ?? "";
+        const bLabel = b.event_customer_label?.trim() ?? "";
+        return collator.compare(enNum(aLabel), enNum(bLabel));
+      });
+  }, [orders, search]);
 
   const handleCreate = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -166,9 +181,19 @@ export function EventScreen({ onOpenOrder, onBack }: EventScreenProps) {
       </form>
 
       <div className="rounded-2xl border border-border bg-surface">
-        <div className="flex items-center justify-between gap-3 border-b border-border px-5 py-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-4">
           <div className="text-base font-bold text-text">سفارش‌های فعال</div>
-          <Badge tone="default">{faNum(activeEventOrders.length)} سفارش</Badge>
+          <div className="flex items-center gap-3">
+            <input
+              type="search"
+              className="min-h-10 w-44 rounded-xl border border-border bg-surface-2 px-3 py-2 text-base font-semibold text-text outline-none transition placeholder:text-muted focus:border-accent"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="جستجوی نام میز"
+              autoComplete="off"
+            />
+            <Badge tone="default">{faNum(activeEventOrders.length)} سفارش</Badge>
+          </div>
         </div>
 
         {isLoading ? (
@@ -177,10 +202,12 @@ export function EventScreen({ onOpenOrder, onBack }: EventScreenProps) {
           </div>
         ) : activeEventOrders.length === 0 ? (
           <div className="p-8 text-lg text-muted">
-            هنوز سفارش رویداد فعالی ثبت نشده است.
+            {search.trim()
+              ? "سفارشی با این نام پیدا نشد."
+              : "هنوز سفارش رویداد فعالی ثبت نشده است."}
           </div>
         ) : (
-          <div className="divide-y divide-border">
+          <div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-3 lg:grid-cols-4">
             {activeEventOrders.map((order) => {
               const meta = statusMeta[order.status];
               const labelText = order.event_customer_label?.trim() || "بدون نام";
@@ -189,22 +216,22 @@ export function EventScreen({ onOpenOrder, onBack }: EventScreenProps) {
                 <button
                   key={order.id}
                   type="button"
-                  className="grid w-full grid-cols-1 items-center gap-4 px-5 py-4 text-right transition hover:bg-surface-2 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-accent md:grid-cols-[minmax(0,1fr)_auto_auto]"
+                  className="flex flex-col gap-2 rounded-xl border border-border bg-surface-2 p-3 text-right transition hover:border-accent focus:outline-none focus:ring-2 focus:ring-accent"
                   onClick={() => onOpenOrder(order.id)}
                 >
-                  <div className="min-w-0">
-                    <div className="truncate text-xl font-black text-text">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="truncate text-lg font-black text-text">
                       {labelText}
                     </div>
-                    <div className="mt-1 text-sm font-semibold text-muted">
-                      سفارش {faNum(order.id)}
-                    </div>
+                    <Badge tone={meta.tone}>{meta.label}</Badge>
                   </div>
-                  <span className="inline-flex items-baseline gap-2 text-xl font-black text-text">
+                  <div className="text-xs font-semibold text-muted">
+                    سفارش {faNum(order.id)}
+                  </div>
+                  <span className="mt-auto inline-flex items-baseline gap-1 text-base font-black text-text">
                     <span>{money(order.subtotal)}</span>
-                    <span className="text-sm text-muted">{UNIT}</span>
+                    <span className="text-xs text-muted">{UNIT}</span>
                   </span>
-                  <Badge tone={meta.tone}>{meta.label}</Badge>
                 </button>
               );
             })}

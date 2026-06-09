@@ -6,6 +6,13 @@ export function faNum(n: number | string) {
   return String(n).replace(/\d/g, (digit) => FA_DIGITS[Number(digit)]);
 }
 
+// Persian/Arabic digits -> ASCII digits. For search/sort on user labels.
+export function enNum(s: string) {
+  return s
+    .replace(/[۰-۹]/g, (d) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(d)))
+    .replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d)));
+}
+
 export function faGroup(n: number) {
   return Math.round(n)
     .toString()
