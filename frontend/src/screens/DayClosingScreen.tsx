@@ -55,6 +55,8 @@ type MonthlyDaily = {
   card_total?: number;
   bank_transfer_total?: number;
   purchases_total?: number;
+  // false for days that have orders but were never closed (computed live).
+  is_closed?: boolean;
 };
 
 type MonthlyReport = {
@@ -213,6 +215,7 @@ export function DayClosingScreen() {
   const [rangeForm, setRangeForm] = useState({ from: today, to: today });
   const [rangeReport, setRangeReport] = useState<RangeReport | null>(null);
   const [isRangeLoading, setIsRangeLoading] = useState(false);
+  const [closingDate, setClosingDate] = useState<string | null>(null);
 
   const showToast = useCallback((nextToast: Toast) => {
     setToast(nextToast);
@@ -333,6 +336,54 @@ export function DayClosingScreen() {
       setIsClosing(false);
     }
   };
+
+  const closeDayRow = useCallback(
+    async (businessDate: string, confirm = false) => {
+      setClosingDate(businessDate);
+
+      try {
+        await apiPost("/day-closing/close/", {
+          business_date: businessDate,
+          confirm,
+        });
+        showToast({ tone: "good", message: "روز بسته شد" });
+        await loadMonthlyReport(monthForm.year, monthForm.month);
+        await loadPreview();
+      } catch (caughtError) {
+        if (
+          !confirm &&
+          caughtError instanceof ApiError &&
+          caughtError.status === 400
+        ) {
+          const body = caughtError.body as Partial<ClosingPreview> | null;
+          const openCount = body?.unresolved_orders?.length ?? 0;
+
+          if (openCount > 0) {
+            const proceed = window.confirm(
+              `${openCount} سفارش باز در این روز وجود دارد. روز با تایید بسته شود؟`,
+            );
+
+            if (proceed) {
+              await closeDayRow(businessDate, true);
+              return;
+            }
+
+            return;
+          }
+        }
+
+        showToast({
+          tone: "bad",
+          message: apiMessage(caughtError, "بستن روز ناموفق بود"),
+        });
+      } finally {
+        setClosingDate((current) =>
+          current === businessDate ? null : current,
+        );
+      }
+    },
+    [loadMonthlyReport, loadPreview, monthForm.month, monthForm.year, showToast],
+  );
 
   const handleCloseClick = () => {
     if ((preview?.open_orders_count ?? 0) > 0) {
@@ -580,7 +631,21 @@ export function DayClosingScreen() {
                         key={day.business_date}
                         className="grid grid-cols-[1fr_0.8fr_0.8fr] gap-3 border-b border-border/70 px-4 py-3 text-sm font-semibold last:border-b-0"
                       >
-                        <div className="text-text">{faNum(day.business_date)}</div>
+                        <div className="flex items-center gap-2 text-text">
+                          {faNum(day.business_date)}
+                          {day.is_closed === false && (
+                            <button
+                              type="button"
+                              onClick={() => void closeDayRow(day.business_date)}
+                              disabled={closingDate === day.business_date}
+                              className="rounded-md bg-warn/15 px-2 py-0.5 text-xs font-bold text-warn transition hover:bg-warn/25 disabled:opacity-50"
+                            >
+                              {closingDate === day.business_date
+                                ? "در حال بستن..."
+                                : "بستن روز"}
+                            </button>
+                          )}
+                        </div>
                         <div className="text-muted">{faNum(day.orders_count)}</div>
                         <RevenueWithUnit
                           value={day.total_sales}

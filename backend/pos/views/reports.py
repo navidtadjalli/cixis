@@ -6,28 +6,36 @@ from rest_framework.decorators import api_view
 from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 
-from .. import services
+from .. import closing, services
 from ..models import DayClosing, Order, OrderItem
+
+# Keys summed across daily rows to build the month totals.
+_MONTH_TOTAL_KEYS = (
+    "total_sales",
+    "cash_total",
+    "card_total",
+    "bank_transfer_total",
+    "purchases_total",
+)
 
 
 @api_view(["GET"])
 def monthly(request):
-    """Aggregate DayClosing rows for ?year=&month= (defaults to current month)."""
+    """Aggregate the month's days for ?year=&month= (defaults to current month).
+
+    Closed days come from their DayClosing snapshot. Days that have orders but
+    were never closed (e.g. an app update landed before the day was closed) are
+    computed live from Order/Payment data so their counts aren't lost; those
+    rows carry ``is_closed: false``.
+    """
     today = services.business_today()
     year = int(request.query_params.get("year", today.year))
     month = int(request.query_params.get("month", today.month))
 
-    qs = DayClosing.objects.filter(
+    closings = DayClosing.objects.filter(
         business_date__year=year, business_date__month=month
     ).order_by("business_date")
-
-    totals = qs.aggregate(
-        total_sales=Sum("total_sales"),
-        cash_total=Sum("cash_total"),
-        card_total=Sum("card_total"),
-        bank_transfer_total=Sum("bank_transfer_total"),
-        purchases_total=Sum("purchases_total"),
-    )
+    closed_dates = {dc.business_date for dc in closings}
 
     daily = [
         {
@@ -36,21 +44,46 @@ def monthly(request):
             "cash_total": dc.cash_total,
             "card_total": dc.card_total,
             "bank_transfer_total": dc.bank_transfer_total,
+            "purchases_total": dc.purchases_total,
             "orders_count": dc.orders_count,
+            "is_closed": True,
         }
-        for dc in qs
+        for dc in closings
     ]
+
+    # Surface days that have orders but no DayClosing snapshot yet.
+    open_dates = (
+        Order.objects.filter(business_date__year=year, business_date__month=month)
+        .exclude(business_date__in=closed_dates)
+        .exclude(business_date__isnull=True)
+        .values_list("business_date", flat=True)
+        .distinct()
+    )
+    for business_date in open_dates:
+        summary = closing.compute_day_summary(business_date)
+        daily.append(
+            {
+                "business_date": business_date.isoformat(),
+                "total_sales": summary["total_sales"],
+                "cash_total": summary["cash_total"],
+                "card_total": summary["card_total"],
+                "bank_transfer_total": summary["bank_transfer_total"],
+                "purchases_total": summary["purchases_total"],
+                "orders_count": summary["orders_count"],
+                "is_closed": False,
+            }
+        )
+
+    daily.sort(key=lambda row: row["business_date"])
+
+    totals = {key: sum(row[key] for row in daily) for key in _MONTH_TOTAL_KEYS}
 
     return Response(
         {
             "year": year,
             "month": month,
-            "total_sales": totals["total_sales"] or 0,
-            "cash_total": totals["cash_total"] or 0,
-            "card_total": totals["card_total"] or 0,
-            "bank_transfer_total": totals["bank_transfer_total"] or 0,
-            "purchases_total": totals["purchases_total"] or 0,
-            "days_count": qs.count(),
+            **totals,
+            "days_count": len(daily),
             "daily": daily,
         }
     )

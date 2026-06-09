@@ -29,7 +29,6 @@ type EventScreenProps = {
 const activeStatuses = new Set<EventOrderStatus>([
   "open",
   "partially_paid",
-  "paid",
 ]);
 
 const statusMeta: Record<
