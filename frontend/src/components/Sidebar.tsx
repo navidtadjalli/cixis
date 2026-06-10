@@ -43,7 +43,7 @@ export function Sidebar({
   );
 
   return (
-    <aside className="flex w-80 flex-none flex-col border-l border-border bg-surface px-3 py-5">
+    <aside className="flex w-[26rem] flex-none flex-col border-l border-border bg-surface px-3 py-5">
       <div className="mb-5 flex items-center gap-3">
         <div className="grid h-11 w-11 place-items-center rounded-xl bg-accent text-xl font-black text-[#1b1206]">
           Ç
@@ -56,11 +56,11 @@ export function Sidebar({
 
       <div className="mb-2 text-xs font-bold text-muted">دسته‌بندی‌ها</div>
       <nav
-        className="flex max-h-[35vh] flex-none flex-wrap gap-1.5 overflow-y-auto"
+        className="grid max-h-[35vh] flex-none grid-cols-2 gap-1.5 overflow-y-auto"
         aria-label="دسته‌بندی‌ها"
       >
         {sortedCategories.length === 0 ? (
-          <div className="w-full rounded-xl border border-border bg-surface-2 px-3 py-2 text-xs text-muted">
+          <div className="col-span-2 w-full rounded-xl border border-border bg-surface-2 px-3 py-2 text-xs text-muted">
             دسته‌بندی ثبت نشده است.
           </div>
         ) : (
@@ -72,7 +72,7 @@ export function Sidebar({
                 key={category.id}
                 type="button"
                 className={[
-                  "rounded-xl border px-3 py-1.5 text-lg font-bold transition",
+                  "w-full rounded-xl border px-3 py-1.5 text-right text-lg font-bold transition",
                   isActive
                     ? "border-accent bg-accent text-[#1b1206] shadow-lg shadow-black/20"
                     : "border-border bg-surface-2 text-text hover:bg-[var(--surface-3)]",
@@ -88,7 +88,7 @@ export function Sidebar({
       </nav>
 
       <div className="mb-2 mt-5 text-xs font-bold text-muted">محصولات</div>
-      <div className="flex min-h-0 flex-1 flex-wrap content-start gap-1.5 overflow-y-auto">
+      <div className="flex flex-wrap content-start gap-1.5">
         {selectedCategoryId === null ? (
           <div className="w-full rounded-xl border border-border bg-surface-2 px-3 py-2 text-xs text-muted">
             یک دسته‌بندی را انتخاب کنید.

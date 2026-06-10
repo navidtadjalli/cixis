@@ -18,8 +18,14 @@ from .models import (
 
 def compute_day_summary(business_date: date) -> dict:
     """Aggregate totals for a single business date (used by preview + close)."""
-    orders = Order.objects.filter(business_date=business_date)
-    payments = Payment.objects.filter(order__business_date=business_date)
+    # Only orders not yet settled into a DayClosing count toward the live
+    # summary; closing a day links its orders so the next shift starts at zero.
+    orders = Order.objects.filter(
+        business_date=business_date, day_closing__isnull=True
+    )
+    payments = Payment.objects.filter(
+        order__business_date=business_date, order__day_closing__isnull=True
+    )
 
     def method_total(method):
         return sum(

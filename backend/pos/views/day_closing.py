@@ -6,7 +6,7 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
 from .. import closing, services
-from ..models import DayClosing
+from ..models import DayClosing, Order
 from ..sync import sync_day_closing_async
 
 
@@ -65,6 +65,11 @@ def close(request):
         )
 
     day_closing = closing.create_day_closing(target)
+    # Settle the day's orders into this closing so the live preview resets to
+    # zero. Reports still read them by business_date.
+    Order.objects.filter(
+        business_date=target, day_closing__isnull=True
+    ).update(day_closing=day_closing)
     backup = closing.make_backup()
     sync_day_closing_async(day_closing)
     day_closing.refresh_from_db()

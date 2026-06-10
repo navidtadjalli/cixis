@@ -101,6 +101,16 @@ class Order(TimeStamped, UserStamped):
     paid_amount = models.IntegerField(default=0)
     remaining_amount = models.IntegerField(default=0)
     business_date = models.DateField(null=True, blank=True)
+    # Set when the day is closed: links the order to its DayClosing snapshot so
+    # the live preview can exclude already-settled orders (register resets to
+    # zero) while reports still read history by business_date.
+    day_closing = models.ForeignKey(
+        "DayClosing",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="orders",
+    )
     opened_at = models.DateTimeField(auto_now_add=True)
     closed_at = models.DateTimeField(null=True, blank=True)
 
