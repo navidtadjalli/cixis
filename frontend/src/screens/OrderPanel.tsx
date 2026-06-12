@@ -79,9 +79,9 @@ const statusMeta: Record<
 };
 
 const paymentMethods: Array<{ value: PaymentMethod; label: string }> = [
+  { value: "bank_transfer", label: "کارت‌به‌کارت" },
   { value: "cash", label: "نقدی" },
   { value: "card", label: "کارت" },
-  { value: "bank_transfer", label: "کارت‌به‌کارت" },
 ];
 
 function formatMoney(value: number) {
@@ -113,11 +113,11 @@ export function OrderPanel({
   const [tables, setTables] = useState<Table[]>([]);
   const [selectedTableId, setSelectedTableId] = useState("");
   const [sourceTableId, setSourceTableId] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("bank_transfer");
   // Item-based split payment: pick how many of each item this customer pays for.
   const [splitOpen, setSplitOpen] = useState(false);
   const [splitCounts, setSplitCounts] = useState<Record<number, number>>({});
-  const [splitMethod, setSplitMethod] = useState<PaymentMethod>("cash");
+  const [splitMethod, setSplitMethod] = useState<PaymentMethod>("bank_transfer");
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
