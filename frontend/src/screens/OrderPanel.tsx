@@ -79,9 +79,9 @@ const statusMeta: Record<
 };
 
 const paymentMethods: Array<{ value: PaymentMethod; label: string }> = [
-  { value: "bank_transfer", label: "کارت‌به‌کارت" },
-  { value: "cash", label: "نقدی" },
   { value: "card", label: "کارت" },
+  { value: "cash", label: "نقدی" },
+  { value: "bank_transfer", label: "کارت‌به‌کارت" },
 ];
 
 function formatMoney(value: number) {
@@ -113,11 +113,11 @@ export function OrderPanel({
   const [tables, setTables] = useState<Table[]>([]);
   const [selectedTableId, setSelectedTableId] = useState("");
   const [sourceTableId, setSourceTableId] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("bank_transfer");
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("card");
   // Item-based split payment: pick how many of each item this customer pays for.
   const [splitOpen, setSplitOpen] = useState(false);
   const [splitCounts, setSplitCounts] = useState<Record<number, number>>({});
-  const [splitMethod, setSplitMethod] = useState<PaymentMethod>("bank_transfer");
+  const [splitMethod, setSplitMethod] = useState<PaymentMethod>("card");
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -128,6 +128,80 @@ export function OrderPanel({
   const sortedItems = useMemo(() => {
     return order ? [...order.items].sort((a, b) => a.id - b.id) : [];
   }, [order]);
+
+  // Items can be partially paid (e.g. 1 of 2 espressos settled via split
+  // payment). The paid units render as their own deactivated card while the
+  // unpaid units stay active, so the cashier sees exactly what's left to pay.
+  const remainingItems = useMemo(
+    () => sortedItems.filter((item) => item.quantity - item.paid_quantity > 0),
+    [sortedItems],
+  );
+  const paidItems = useMemo(
+    () => sortedItems.filter((item) => item.paid_quantity > 0),
+    [sortedItems],
+  );
+
+  const renderItemCard = (item: OrderItem, deactivated: boolean) => {
+    const count = deactivated
+      ? item.paid_quantity
+      : item.quantity - item.paid_quantity;
+    return (
+    <div
+      key={`${item.id}-${deactivated ? "paid" : "open"}`}
+      className={[
+        "flex flex-col gap-2 rounded-xl border border-border bg-surface-2 p-2.5 transition",
+        deactivated ? "pointer-events-none opacity-40 grayscale" : "",
+      ].join(" ")}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="line-clamp-2 text-sm font-black text-text">
+            {item.product_name_snapshot}
+          </div>
+          <div className="mt-0.5 text-[11px] font-semibold text-muted">
+            {formatMoney(item.unit_price_snapshot)}
+          </div>
+        </div>
+        <button
+          type="button"
+          className="grid h-7 w-7 flex-none place-items-center rounded-lg border border-border bg-surface text-base font-black text-muted transition hover:bg-bad/10 hover:text-bad disabled:cursor-not-allowed disabled:opacity-40"
+          disabled={isLocked || isSubmitting || deactivated}
+          aria-label={`حذف ${item.product_name_snapshot}`}
+          onClick={() => void removeItem(item)}
+        >
+          ×
+        </button>
+      </div>
+
+      <div className="mt-auto flex items-center justify-between gap-2">
+        <div className="inline-flex h-8 items-center overflow-hidden rounded-lg border border-border bg-surface">
+          <button
+            type="button"
+            className="h-8 w-8 text-base font-black text-muted transition hover:bg-[var(--surface-3)] hover:text-text disabled:cursor-not-allowed disabled:opacity-40"
+            disabled={isLocked || isSubmitting || deactivated}
+            onClick={() => changeQuantity(item, item.quantity - 1)}
+          >
+            −
+          </button>
+          <span className="grid h-8 w-8 place-items-center border-x border-border text-sm font-black text-text">
+            {faNum(count)}
+          </span>
+          <button
+            type="button"
+            className="h-8 w-8 text-base font-black text-muted transition hover:bg-[var(--surface-3)] hover:text-text disabled:cursor-not-allowed disabled:opacity-40"
+            disabled={isLocked || isSubmitting || deactivated}
+            onClick={() => changeQuantity(item, item.quantity + 1)}
+          >
+            +
+          </button>
+        </div>
+        <div className="text-xs font-black text-text">
+          {formatMoney(count * item.unit_price_snapshot)}
+        </div>
+      </div>
+    </div>
+    );
+  };
 
   const moveTables = useMemo(() => {
     return tables
@@ -294,7 +368,7 @@ export function OrderPanel({
 
   const openSplit = () => {
     setSplitCounts({});
-    setSplitMethod("cash");
+    setSplitMethod("card");
     setSplitOpen(true);
   };
 
@@ -495,73 +569,20 @@ export function OrderPanel({
                   )}
                 </div>
               ) : (
-                <div className="grid grid-cols-3 gap-2">
-                  {sortedItems.map((item) => (
-                    <div
-                      key={item.id}
-                      className="flex flex-col gap-2 rounded-xl border border-border bg-surface-2 p-2.5"
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <div className="line-clamp-2 text-sm font-black text-text">
-                            {item.product_name_snapshot}
-                          </div>
-                          <div className="mt-0.5 text-[11px] font-semibold text-muted">
-                            {formatMoney(item.unit_price_snapshot)}
-                          </div>
-                        </div>
-                        <button
-                          type="button"
-                          className="grid h-7 w-7 flex-none place-items-center rounded-lg border border-border bg-surface text-base font-black text-muted transition hover:bg-bad/10 hover:text-bad disabled:cursor-not-allowed disabled:opacity-40"
-                          disabled={isLocked || isSubmitting}
-                          aria-label={`حذف ${item.product_name_snapshot}`}
-                          onClick={() => void removeItem(item)}
-                        >
-                          ×
-                        </button>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-3 gap-2">
+                    {remainingItems.map((item) => renderItemCard(item, false))}
+                  </div>
+                  {paidItems.length > 0 && (
+                    <div className="space-y-2 border-t border-border pt-3">
+                      <div className="text-xs font-black text-good">
+                        پرداخت‌شده
                       </div>
-
-                      {item.paid_quantity > 0 && (
-                        <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-black">
-                          <span className="rounded-md bg-good/15 px-1.5 py-0.5 text-good">
-                            پرداخت‌شده {faNum(item.paid_quantity)}
-                          </span>
-                          {item.quantity - item.paid_quantity > 0 && (
-                            <span className="rounded-md bg-bad/15 px-1.5 py-0.5 text-bad">
-                              مانده {faNum(item.quantity - item.paid_quantity)}
-                            </span>
-                          )}
-                        </div>
-                      )}
-
-                      <div className="mt-auto flex items-center justify-between gap-2">
-                        <div className="inline-flex h-8 items-center overflow-hidden rounded-lg border border-border bg-surface">
-                          <button
-                            type="button"
-                            className="h-8 w-8 text-base font-black text-muted transition hover:bg-[var(--surface-3)] hover:text-text disabled:cursor-not-allowed disabled:opacity-40"
-                            disabled={isLocked || isSubmitting}
-                            onClick={() => changeQuantity(item, item.quantity - 1)}
-                          >
-                            −
-                          </button>
-                          <span className="grid h-8 w-8 place-items-center border-x border-border text-sm font-black text-text">
-                            {faNum(item.quantity)}
-                          </span>
-                          <button
-                            type="button"
-                            className="h-8 w-8 text-base font-black text-muted transition hover:bg-[var(--surface-3)] hover:text-text disabled:cursor-not-allowed disabled:opacity-40"
-                            disabled={isLocked || isSubmitting}
-                            onClick={() => changeQuantity(item, item.quantity + 1)}
-                          >
-                            +
-                          </button>
-                        </div>
-                        <div className="text-xs font-black text-text">
-                          {formatMoney(item.line_total)}
-                        </div>
+                      <div className="grid grid-cols-3 gap-2">
+                        {paidItems.map((item) => renderItemCard(item, true))}
                       </div>
                     </div>
-                  ))}
+                  )}
                 </div>
               )}
             </div>
