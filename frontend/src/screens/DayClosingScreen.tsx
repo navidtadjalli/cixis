@@ -7,7 +7,7 @@ import {
 } from "react";
 import camelIcon from "../assets/camel.png";
 import { ApiError, apiGet, apiPost } from "../lib/api";
-import { faNum, money, UNIT } from "../lib/format";
+import { faJalaliDate, faNum, money, UNIT } from "../lib/format";
 import { Badge, Button, Modal } from "../components/ui";
 import { JalaliDateInput } from "../components/JalaliDateInput";
 
@@ -635,7 +635,7 @@ export function DayClosingScreen() {
                         className="grid grid-cols-[1fr_0.8fr_0.8fr] gap-3 border-b border-border/70 px-4 py-3 text-sm font-semibold last:border-b-0"
                       >
                         <div className="flex items-center gap-2 text-text">
-                          {faNum(day.business_date)}
+                          {faJalaliDate(day.business_date)}
                           {day.is_closed === false && (
                             <button
                               type="button"
