@@ -6,15 +6,19 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
 from .. import closing, services
-from ..models import DayClosing, Order
+from ..models import Order
 from ..sync import sync_day_closing_async
 
 
 @api_view(["GET"])
 def preview(request):
-    """Return the aggregated closing summary for today (before committing)."""
-    today = services.business_today()
-    return Response(closing.compute_day_summary(today))
+    """Return the live closing summary: every order not yet settled.
+
+    Not scoped to the calendar date, so a session that runs past midnight keeps
+    all its orders here until the cashier closes manually — nothing resets at
+    00:00 and nothing closes automatically.
+    """
+    return Response(closing.compute_day_summary(None))
 
 
 @api_view(["POST"])
@@ -30,6 +34,9 @@ def close(request):
     """
     today = services.business_today()
     raw_date = request.data.get("business_date")
+    # No date -> the live register (all unsettled orders), stamped with today.
+    # A date -> a specific historical day (the per-row close in reports).
+    live = not raw_date
     if raw_date:
         try:
             target = date.fromisoformat(str(raw_date))
@@ -48,13 +55,16 @@ def close(request):
 
     confirm = str(request.data.get("confirm")).lower() in ("true", "1", "yes")
 
-    if DayClosing.objects.filter(business_date=target).exists():
+    summary = closing.compute_day_summary(None if live else target)
+
+    # Closing is cashier-driven and may happen many times a day; the only thing
+    # that makes a close invalid is having nothing to settle.
+    if summary["orders_count"] == 0:
         return Response(
-            {"detail": "این روز قبلاً بسته شده است."},
+            {"detail": "سفارشی برای بستن وجود ندارد."},
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    summary = closing.compute_day_summary(target)
     if summary["unresolved_orders"] and not confirm:
         return Response(
             {
@@ -64,12 +74,14 @@ def close(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    day_closing = closing.create_day_closing(target)
-    # Settle the day's orders into this closing so the live preview resets to
-    # zero. Reports still read them by business_date.
-    Order.objects.filter(
-        business_date=target, day_closing__isnull=True
-    ).update(day_closing=day_closing)
+    day_closing = closing.create_day_closing(target, summary=summary)
+    # Settle the orders into this closing so the live preview resets to zero.
+    # Live close settles every unsettled order (the whole open session, even if
+    # it crossed midnight); a dated close settles only that day's orders.
+    settle = Order.objects.filter(day_closing__isnull=True)
+    if not live:
+        settle = settle.filter(business_date=target)
+    settle.update(day_closing=day_closing)
     backup = closing.make_backup()
     sync_day_closing_async(day_closing)
     day_closing.refresh_from_db()

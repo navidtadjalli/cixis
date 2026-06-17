@@ -6,6 +6,7 @@ from datetime import date
 from django.conf import settings
 from django.utils import timezone
 
+from . import services
 from .models import (
     BackupRecord,
     DayClosing,
@@ -16,16 +17,28 @@ from .models import (
 )
 
 
-def compute_day_summary(business_date: date) -> dict:
-    """Aggregate totals for a single business date (used by preview + close)."""
+def compute_day_summary(business_date: date | None) -> dict:
+    """Aggregate totals for the live register or a single historical date.
+
+    ``business_date=None`` is the live register: every order not yet settled
+    into a DayClosing, regardless of the calendar date it was rung up. This is
+    what the closing preview shows, so a session that crosses midnight (e.g.
+    Ramadan 18:00 -> 05:00) keeps all its orders visible until the cashier
+    manually closes — nothing disappears or auto-closes at 00:00.
+
+    Passing a concrete ``business_date`` scopes to that date's still-unsettled
+    orders; reports use this to surface a specific unclosed historical day.
+    Purchases/suggestions always reflect the current business date.
+    """
     # Only orders not yet settled into a DayClosing count toward the live
     # summary; closing a day links its orders so the next shift starts at zero.
-    orders = Order.objects.filter(
-        business_date=business_date, day_closing__isnull=True
-    )
-    payments = Payment.objects.filter(
-        order__business_date=business_date, order__day_closing__isnull=True
-    )
+    orders = Order.objects.filter(day_closing__isnull=True)
+    payments = Payment.objects.filter(order__day_closing__isnull=True)
+    if business_date is not None:
+        orders = orders.filter(business_date=business_date)
+        payments = payments.filter(order__business_date=business_date)
+
+    purchases_date = business_date or services.business_today()
 
     def method_total(method):
         return sum(
@@ -44,14 +57,14 @@ def compute_day_summary(business_date: date) -> dict:
     )
 
     purchases_total = sum(
-        ResourcePurchase.objects.filter(business_date=business_date).values_list(
-            "cost", flat=True
-        )
+        ResourcePurchase.objects.filter(
+            business_date=purchases_date
+        ).values_list("cost", flat=True)
     )
 
     suggestions = list(
         ResourceSuggestion.objects.filter(
-            created_for_date=business_date
+            created_for_date=purchases_date
         ).values("resource_name", "reason", "suggested_quantity")
     )
     for s in suggestions:
@@ -121,9 +134,15 @@ def prune_backups():
         BackupRecord.objects.filter(file_path=str(stale)).delete()
 
 
-def create_day_closing(business_date: date) -> DayClosing:
-    """Persist a DayClosing snapshot for the given date from the live summary."""
-    summary = compute_day_summary(business_date)
+def create_day_closing(business_date: date, summary: dict | None = None) -> DayClosing:
+    """Persist a DayClosing snapshot stamped with ``business_date``.
+
+    ``summary`` lets the caller supply the live (all-unsettled) aggregate so a
+    midnight-crossing session is settled into a single snapshot; when omitted
+    the snapshot is scoped to ``business_date`` alone.
+    """
+    if summary is None:
+        summary = compute_day_summary(business_date)
     return DayClosing.objects.create(
         business_date=business_date,
         total_sales=summary["total_sales"],

@@ -173,7 +173,11 @@ class DayClosing(TimeStamped):
         SYNCED = "synced", "همگام‌شده"
         FAILED = "failed", "ناموفق"
 
-    business_date = models.DateField(unique=True)
+    # Not unique: closing is a cashier-driven settlement event, not a per-day
+    # record. One calendar day may have several closings (or none), and a single
+    # closing may settle orders spanning several days. business_date is just the
+    # date the close happened, for report grouping.
+    business_date = models.DateField()
     total_sales = models.IntegerField(default=0)
     cash_total = models.IntegerField(default=0)
     card_total = models.IntegerField(default=0)

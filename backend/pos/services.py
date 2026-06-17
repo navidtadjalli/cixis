@@ -1,6 +1,7 @@
 """Shared domain helpers: order totals, table status, day-business-date."""
-from datetime import date
+from datetime import date, timedelta
 
+from django.conf import settings
 from django.utils import timezone
 
 from .models import Order, Payment
@@ -17,8 +18,18 @@ ACTIVE_STATUSES = (
 
 
 def business_today() -> date:
-    """Today's business date (local timezone)."""
-    return timezone.localdate()
+    """Current business date, honoring the late-night rollover cutoff.
+
+    A cafe open past midnight (e.g. Ramadan 18:00 -> 05:00) should keep the
+    same business date until ``BUSINESS_DAY_START_HOUR`` so the live closing
+    register doesn't reset at 00:00. Hours before the cutoff count as the
+    previous calendar day.
+    """
+    now = timezone.localtime()
+    start_hour = getattr(settings, "BUSINESS_DAY_START_HOUR", 0)
+    if now.hour < start_hour:
+        return (now - timedelta(days=1)).date()
+    return now.date()
 
 
 def is_date_closed(business_date) -> bool:

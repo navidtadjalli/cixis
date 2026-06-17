@@ -105,4 +105,95 @@ describe("DayClosingScreen", () => {
       });
     });
   });
+
+  it("refreshes the monthly table after closing so the closed row drops its button", async () => {
+    const user = userEvent.setup();
+
+    const previewNoOpenOrders = {
+      ...previewWithOpenOrders,
+      open_orders_count: 0,
+      unresolved_orders: [],
+    };
+
+    const monthlyRow = {
+      business_date: "2026-06-18",
+      total_sales: 500,
+      orders_count: 5,
+      cash_total: 100,
+      card_total: 300,
+      bank_transfer_total: 100,
+      purchases_total: 0,
+    };
+
+    let dayClosed = false;
+
+    mockedApiGet.mockImplementation(async (path) => {
+      if (path === "/day-closing/preview/") {
+        return previewNoOpenOrders;
+      }
+      if (path.startsWith("/resources/purchases/")) {
+        return [];
+      }
+      if (path.startsWith("/reports/range/")) {
+        return {
+          from: "2026-06-18",
+          to: "2026-06-18",
+          orders_count: 0,
+          orders_total: 0,
+          items: [],
+          items_quantity_total: 0,
+          items_amount_total: 0,
+        };
+      }
+      if (path.startsWith("/reports/monthly/")) {
+        return {
+          year: 2026,
+          month: 6,
+          total_sales: 500,
+          cash_total: 100,
+          card_total: 300,
+          bank_transfer_total: 100,
+          purchases_total: 0,
+          days_count: 1,
+          daily: [{ ...monthlyRow, is_closed: dayClosed }],
+        };
+      }
+      throw new Error(`Unexpected path: ${path}`);
+    });
+
+    mockedApiPost.mockImplementation(async (path) => {
+      if (path === "/day-closing/close/") {
+        // Once closed, the monthly report should report the day as closed.
+        dayClosed = true;
+        return { ...previewNoOpenOrders, id: 1, business_date: "2026-06-18" };
+      }
+      throw new Error(`Unexpected post: ${path}`);
+    });
+
+    render(
+      <RevenueProvider>
+        <DayClosingScreen />
+      </RevenueProvider>,
+    );
+
+    await screen.findByText("پیش‌نمایش بستن روز");
+    // Two "بستن روز" buttons initially: the header action + the open row's button.
+    await waitFor(() => {
+      expect(screen.getAllByRole("button", { name: "بستن روز" })).toHaveLength(2);
+    });
+
+    // No open orders -> header button closes directly (no dialog).
+    await user.click(screen.getAllByRole("button", { name: "بستن روز" })[0]);
+
+    await waitFor(() => {
+      expect(mockedApiPost).toHaveBeenCalledWith("/day-closing/close/", {
+        confirm: true,
+      });
+    });
+
+    // After the refresh the row is closed, leaving only the header button.
+    await waitFor(() => {
+      expect(screen.getAllByRole("button", { name: "بستن روز" })).toHaveLength(1);
+    });
+  });
 });

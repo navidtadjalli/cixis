@@ -159,7 +159,66 @@ class MonthlyReportTests(TestCase):
         self.assertEqual(row["orders_count"], 1)
         self.assertEqual(row["total_sales"], 300)
 
+    def test_multiple_closings_same_date_sum_into_one_row(self):
+        """Several closings on one calendar date collapse to one summed row."""
+        day = self.today.replace(day=8)
+        DayClosing.objects.create(
+            business_date=day, total_sales=300, cash_total=300, orders_count=2
+        )
+        DayClosing.objects.create(
+            business_date=day, total_sales=500, card_total=500, orders_count=3
+        )
+
+        response = self.client.get(
+            f"/api/reports/monthly/?year={day.year}&month={day.month}"
+        )
+
+        rows = [
+            row
+            for row in response.data["daily"]
+            if row["business_date"] == day.isoformat()
+        ]
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["total_sales"], 800)
+        self.assertEqual(rows[0]["orders_count"], 5)
+        self.assertTrue(rows[0]["is_closed"])
+        self.assertEqual(response.data["total_sales"], 800)
+
     def test_cannot_close_future_day(self):
         future = (self.today + timedelta(days=1)).isoformat()
         response = self._close({"business_date": future, "confirm": True})
         self.assertEqual(response.status_code, 400)
+
+    def test_unclosed_day_with_many_orders_yields_one_row(self):
+        """Regression: Order's default ordering must not defeat distinct().
+
+        Multiple orders on the same unclosed day must collapse to a single
+        daily row, not one duplicate row per order.
+        """
+        day = self.today.replace(day=12)
+        for _ in range(3):
+            order = Order.objects.create(
+                mode=Order.Mode.TABLE,
+                table=self.table,
+                status=Order.Status.PAID,
+                business_date=day,
+            )
+            Payment.objects.create(
+                order=order, amount=100, method=Payment.Method.CASH
+            )
+
+        response = self.client.get(
+            f"/api/reports/monthly/?year={day.year}&month={day.month}"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        rows = [
+            row
+            for row in response.data["daily"]
+            if row["business_date"] == day.isoformat()
+        ]
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["orders_count"], 3)
+        self.assertEqual(rows[0]["total_sales"], 300)
+        self.assertFalse(rows[0]["is_closed"])
+        self.assertEqual(response.data["days_count"], 1)

@@ -1,5 +1,6 @@
 import os
 import tempfile
+from datetime import timedelta
 from pathlib import Path
 from unittest.mock import patch
 
@@ -144,3 +145,98 @@ class DayClosingTests(TestCase):
             )
         self.assertEqual(confirmed.status_code, 201)
         self.assertEqual(DayClosing.objects.count(), 1)
+
+    def _paid_order_on(self, business_date, amount=200):
+        order = Order.objects.create(
+            mode=Order.Mode.TABLE,
+            table=self.table,
+            status=Order.Status.OPEN,
+            business_date=business_date,
+        )
+        self.client.post(
+            f"/api/orders/{order.id}/items/",
+            {"product_id": self.product.id, "quantity": 2},
+            format="json",
+        )
+        self.client.post(
+            f"/api/orders/{order.id}/payments/",
+            {"amount": amount, "method": Payment.Method.CARD},
+            format="json",
+        )
+        order.refresh_from_db()
+        return order
+
+    def test_preview_includes_unsettled_orders_from_a_previous_date(self):
+        """A past-midnight session: yesterday's unclosed orders stay visible."""
+        yesterday = self.today - timedelta(days=1)
+        self._paid_order_on(yesterday, amount=150)
+        self._paid_order_on(self.today, amount=200)
+
+        response = self.client.get("/api/day-closing/preview/")
+
+        self.assertEqual(response.status_code, 200)
+        # Both orders count toward the live register regardless of date.
+        self.assertEqual(response.data["orders_count"], 2)
+        self.assertEqual(response.data["total_sales"], 350)
+
+    def test_live_close_settles_orders_across_dates_into_one_snapshot(self):
+        """Manual close settles the whole open session, then preview is zero."""
+        yesterday = self.today - timedelta(days=1)
+        self._paid_order_on(yesterday, amount=150)
+        self._paid_order_on(self.today, amount=200)
+
+        with override_settings(BACKUP_DIR=self.backup_dir), patch(
+            "pos.closing.shutil.copy2", self.fake_copy2
+        ):
+            closed = self.client.post(
+                "/api/day-closing/close/", {"confirm": True}, format="json"
+            )
+
+        self.assertEqual(closed.status_code, 201)
+        self.assertEqual(closed.data["business_date"], self.today.isoformat())
+        self.assertEqual(closed.data["orders_count"], 2)
+        self.assertEqual(closed.data["total_sales"], 350)
+        # Every order is now settled; the live register resets to zero.
+        self.assertEqual(
+            Order.objects.filter(day_closing__isnull=True).count(), 0
+        )
+        preview = self.client.get("/api/day-closing/preview/")
+        self.assertEqual(preview.data["orders_count"], 0)
+        self.assertEqual(preview.data["total_sales"], 0)
+
+    def test_can_close_multiple_times_in_one_day(self):
+        """Cashier may close whenever; same calendar day -> several closings."""
+        self._paid_order_on(self.today, amount=100)
+        with override_settings(BACKUP_DIR=self.backup_dir), patch(
+            "pos.closing.shutil.copy2", self.fake_copy2
+        ):
+            first = self.client.post(
+                "/api/day-closing/close/", {"confirm": True}, format="json"
+            )
+        self.assertEqual(first.status_code, 201)
+
+        # New orders arrive after the first close; a second close settles them.
+        self._paid_order_on(self.today, amount=250)
+        with override_settings(BACKUP_DIR=self.backup_dir), patch(
+            "pos.closing.shutil.copy2", self.fake_copy2
+        ):
+            second = self.client.post(
+                "/api/day-closing/close/", {"confirm": True}, format="json"
+            )
+        self.assertEqual(second.status_code, 201)
+
+        self.assertEqual(
+            DayClosing.objects.filter(business_date=self.today).count(), 2
+        )
+        self.assertEqual(first.data["total_sales"], 100)
+        self.assertEqual(second.data["total_sales"], 250)
+
+    def test_close_with_nothing_to_settle_is_rejected(self):
+        with override_settings(BACKUP_DIR=self.backup_dir), patch(
+            "pos.closing.shutil.copy2", self.fake_copy2
+        ):
+            response = self.client.post(
+                "/api/day-closing/close/", {"confirm": True}, format="json"
+            )
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(DayClosing.objects.count(), 0)

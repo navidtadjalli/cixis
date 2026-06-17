@@ -92,4 +92,13 @@ CORS_ALLOW_ALL_ORIGINS = True
 BACKUP_DIR = Path(os.environ.get("CIXIS_BACKUP_DIR", str(BASE_DIR / "backups")))
 MAX_BACKUPS = 7
 
+# Hour (0-23, local time) used only to LABEL a closing's business_date and new
+# orders. Visibility never depends on it: the live register is every unsettled
+# order, so nothing resets at midnight regardless of this value. Default 0 =
+# plain calendar date. Set e.g. 6 if you want past-midnight orders grouped under
+# the previous day in reports.
+BUSINESS_DAY_START_HOUR = int(
+    os.environ.get("CIXIS_BUSINESS_DAY_START_HOUR", "0")
+)
+
 APP_VERSION = "1.0.0"

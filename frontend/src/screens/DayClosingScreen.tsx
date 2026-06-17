@@ -314,6 +314,9 @@ export function DayClosingScreen() {
       setClosingResult(result);
       setConfirmClose(false);
       await loadPreview();
+      // Refresh the monthly table so today's row flips to closed and drops its
+      // "بستن روز" button.
+      await loadMonthlyReport(monthForm.year, monthForm.month);
       showToast({ tone: "good", message: "روز بسته شد" });
     } catch (caughtError) {
       if (caughtError instanceof ApiError && caughtError.status === 400) {

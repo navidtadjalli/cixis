@@ -32,30 +32,53 @@ def monthly(request):
     year = int(request.query_params.get("year", today.year))
     month = int(request.query_params.get("month", today.month))
 
+    # A date may have several closings (cashier closes whenever they like), so
+    # sum each date's snapshots into a single daily row.
     closings = DayClosing.objects.filter(
         business_date__year=year, business_date__month=month
     ).order_by("business_date")
     closed_dates = {dc.business_date for dc in closings}
 
-    daily = [
-        {
-            "business_date": dc.business_date.isoformat(),
-            "total_sales": dc.total_sales,
-            "cash_total": dc.cash_total,
-            "card_total": dc.card_total,
-            "bank_transfer_total": dc.bank_transfer_total,
-            "purchases_total": dc.purchases_total,
-            "orders_count": dc.orders_count,
-            "is_closed": True,
-        }
-        for dc in closings
-    ]
+    by_date: dict[str, dict] = {}
+    for dc in closings:
+        key = dc.business_date.isoformat()
+        row = by_date.get(key)
+        if row is None:
+            by_date[key] = {
+                "business_date": key,
+                "total_sales": dc.total_sales,
+                "cash_total": dc.cash_total,
+                "card_total": dc.card_total,
+                "bank_transfer_total": dc.bank_transfer_total,
+                "purchases_total": dc.purchases_total,
+                "orders_count": dc.orders_count,
+                "is_closed": True,
+            }
+        else:
+            row["total_sales"] += dc.total_sales
+            row["cash_total"] += dc.cash_total
+            row["card_total"] += dc.card_total
+            row["bank_transfer_total"] += dc.bank_transfer_total
+            row["purchases_total"] += dc.purchases_total
+            row["orders_count"] += dc.orders_count
+    daily = list(by_date.values())
 
     # Surface days that have orders but no DayClosing snapshot yet.
+    # Only orders not yet settled into a DayClosing count as an "open" day; once
+    # settled (possibly into another date's snapshot via a midnight-crossing
+    # close) they belong to that snapshot, not a phantom open row.
+    # ``.order_by()`` clears Order's default ordering (opened_at, id); without
+    # it those columns leak into the SELECT and defeat ``.distinct()``, yielding
+    # one duplicate row per order instead of one row per date.
     open_dates = (
-        Order.objects.filter(business_date__year=year, business_date__month=month)
+        Order.objects.filter(
+            business_date__year=year,
+            business_date__month=month,
+            day_closing__isnull=True,
+        )
         .exclude(business_date__in=closed_dates)
         .exclude(business_date__isnull=True)
+        .order_by()
         .values_list("business_date", flat=True)
         .distinct()
     )
