@@ -94,11 +94,11 @@ MAX_BACKUPS = 7
 
 # Hour (0-23, local time) used only to LABEL a closing's business_date and new
 # orders. Visibility never depends on it: the live register is every unsettled
-# order, so nothing resets at midnight regardless of this value. Default 0 =
-# plain calendar date. Set e.g. 6 if you want past-midnight orders grouped under
-# the previous day in reports.
+# order, so nothing resets at this hour regardless of its value. Default 6 so
+# past-midnight orders (e.g. 03:00) are grouped under the previous day in
+# reports, matching the 6AM rebuild in migration 0009.
 BUSINESS_DAY_START_HOUR = int(
-    os.environ.get("CIXIS_BUSINESS_DAY_START_HOUR", "0")
+    os.environ.get("CIXIS_BUSINESS_DAY_START_HOUR", "6")
 )
 
 APP_VERSION = "1.0.0"
