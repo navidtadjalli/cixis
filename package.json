@@ -1,7 +1,7 @@
 {
   "name": "cixis",
   "private": true,
-  "version": "1.1.11",
+  "version": "1.2.0",
   "description": "CiXiS — offline-first cafe POS (Electron + React + Django).",
   "scripts": {
     "dev": "npm --prefix frontend run dev",
