@@ -27,6 +27,7 @@ const mockedApiPost = vi.mocked(apiPost);
 
 const previewWithOpenOrders = {
   total_sales: 500,
+  gross_sales: 580,
   cash_total: 100,
   card_total: 300,
   bank_transfer_total: 100,

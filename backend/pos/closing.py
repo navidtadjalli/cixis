@@ -56,6 +56,16 @@ def compute_day_summary(business_date: date | None) -> dict:
         status__in=[Order.Status.PAID, Order.Status.CLOSED]
     )
 
+    # "How much have I sold so far" for the supervisor: the booked value of every
+    # unsettled order, not just cash collected. For a partially paid order this is
+    # the amount already paid plus the value of the items still remaining — i.e.
+    # paid_amount + remaining_amount, which sums to the order's full subtotal.
+    # Unlike total_sales (cash+card+bank actually received) this counts the
+    # unpaid remainder of open orders.
+    gross_sales = sum(
+        orders.values_list("paid_amount", flat=True)
+    ) + sum(orders.values_list("remaining_amount", flat=True))
+
     purchases_total = sum(
         ResourcePurchase.objects.filter(
             business_date=purchases_date
@@ -83,6 +93,7 @@ def compute_day_summary(business_date: date | None) -> dict:
 
     return {
         "total_sales": cash + card + bank,
+        "gross_sales": gross_sales,
         "cash_total": cash,
         "card_total": card,
         "bank_transfer_total": bank,
@@ -146,6 +157,7 @@ def create_day_closing(business_date: date, summary: dict | None = None) -> DayC
     return DayClosing.objects.create(
         business_date=business_date,
         total_sales=summary["total_sales"],
+        gross_sales=summary["gross_sales"],
         cash_total=summary["cash_total"],
         card_total=summary["card_total"],
         bank_transfer_total=summary["bank_transfer_total"],

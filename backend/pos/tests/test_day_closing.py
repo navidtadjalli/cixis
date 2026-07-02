@@ -77,6 +77,8 @@ class DayClosingTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["total_sales"], 200)
+        # Fully paid order: booked value equals collected cash.
+        self.assertEqual(response.data["gross_sales"], 200)
         self.assertEqual(response.data["card_total"], 200)
         self.assertEqual(response.data["orders_count"], 1)
         self.assertEqual(response.data["closed_orders_count"], 1)
@@ -84,6 +86,72 @@ class DayClosingTests(TestCase):
         self.assertEqual(response.data["table_usage_count"], 1)
         self.assertEqual(response.data["purchases_total"], 30)
         self.assertEqual(response.data["resource_suggestions"][0]["resource_name"], "Beans")
+
+    def test_gross_sales_counts_remaining_items_of_open_orders(self):
+        """Supervisor's 'sold so far' = paid + remaining across unsettled orders.
+
+        A partially paid order contributes the amount already paid plus the value
+        of the items still on the ticket, so gross_sales exceeds the cash-only
+        total_sales by exactly the unpaid remainder.
+        """
+        # Fully paid: subtotal 200, paid 200 -> remaining 0.
+        self.create_paid_order(quantity=2)
+        # Partial: subtotal 300, paid 100 -> remaining 200.
+        partial = Order.objects.create(
+            mode=Order.Mode.TABLE,
+            table=self.table,
+            status=Order.Status.OPEN,
+            business_date=self.today,
+        )
+        self.client.post(
+            f"/api/orders/{partial.id}/items/",
+            {"product_id": self.product.id, "quantity": 3},
+            format="json",
+        )
+        self.client.post(
+            f"/api/orders/{partial.id}/payments/",
+            {"amount": 100, "method": Payment.Method.CASH},
+            format="json",
+        )
+
+        response = self.client.get("/api/day-closing/preview/")
+
+        self.assertEqual(response.status_code, 200)
+        # Cash actually collected: 200 (card) + 100 (cash).
+        self.assertEqual(response.data["total_sales"], 300)
+        # Booked value: 200 (paid order) + 100 paid + 200 remaining = 500.
+        self.assertEqual(response.data["gross_sales"], 500)
+
+    def test_close_snapshots_gross_sales(self):
+        """gross_sales is persisted on the DayClosing and echoed in the response."""
+        partial = Order.objects.create(
+            mode=Order.Mode.TABLE,
+            table=self.table,
+            status=Order.Status.OPEN,
+            business_date=self.today,
+        )
+        self.client.post(
+            f"/api/orders/{partial.id}/items/",
+            {"product_id": self.product.id, "quantity": 3},
+            format="json",
+        )
+        self.client.post(
+            f"/api/orders/{partial.id}/payments/",
+            {"amount": 100, "method": Payment.Method.CASH},
+            format="json",
+        )
+
+        with override_settings(BACKUP_DIR=self.backup_dir), patch(
+            "pos.closing.shutil.copy2", self.fake_copy2
+        ):
+            response = self.client.post(
+                "/api/day-closing/close/", {"confirm": True}, format="json"
+            )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.data["total_sales"], 100)
+        self.assertEqual(response.data["gross_sales"], 300)
+        self.assertEqual(DayClosing.objects.get().gross_sales, 300)
 
     def test_close_creates_backup_file(self):
         self.create_paid_order()

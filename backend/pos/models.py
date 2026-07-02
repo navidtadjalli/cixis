@@ -179,6 +179,10 @@ class DayClosing(TimeStamped):
     # date the close happened, for report grouping.
     business_date = models.DateField()
     total_sales = models.IntegerField(default=0)
+    # Booked value of every settled order (paid + remaining items), the
+    # supervisor's "how much sold so far" figure; >= total_sales when open
+    # orders carried unpaid items into the close.
+    gross_sales = models.IntegerField(default=0)
     cash_total = models.IntegerField(default=0)
     card_total = models.IntegerField(default=0)
     bank_transfer_total = models.IntegerField(default=0)

@@ -21,6 +21,7 @@ type UnresolvedOrder = {
 
 type ClosingPreview = {
   total_sales: number;
+  gross_sales: number;
   cash_total: number;
   card_total: number;
   bank_transfer_total: number;
@@ -465,6 +466,12 @@ export function DayClosingScreen() {
               <div className="mt-5 grid grid-cols-[repeat(auto-fit,minmax(12rem,1fr))] gap-4">
                 <StatCard label="فروش کل">
                   <RevenueWithUnit value={preview?.total_sales} />
+                </StatCard>
+                <StatCard
+                  label="مجموع فروش تا کنون"
+                  sub="با احتساب مبلغ باقی‌ماندهٔ سفارش‌های باز"
+                >
+                  <RevenueWithUnit value={preview?.gross_sales} />
                 </StatCard>
                 <StatCard label="نقدی">
                   <RevenueWithUnit value={preview?.cash_total} />

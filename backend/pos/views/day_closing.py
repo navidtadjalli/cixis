@@ -91,6 +91,7 @@ def close(request):
             "id": day_closing.id,
             "business_date": day_closing.business_date.isoformat(),
             "total_sales": day_closing.total_sales,
+            "gross_sales": day_closing.gross_sales,
             "cash_total": day_closing.cash_total,
             "card_total": day_closing.card_total,
             "bank_transfer_total": day_closing.bank_transfer_total,
