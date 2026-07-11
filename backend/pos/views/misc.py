@@ -22,8 +22,7 @@ REVENUE_TOKEN_TTL_SECONDS = 60
 # used as the current password to set a new one. It also gates the publish
 # settings, which hold the storage credentials. Stored hashed, never raw.
 GOD_CODE_HASH = (
-    "pbkdf2_sha256$870000$TOJv1IhlvrTtFVxUG2mIsY$"
-    "fUT1dXZrySWDWl0ItxH+qUVYiOPYb3D6xGq9QKTMmcY="
+    "pbkdf2_sha256$870000$gOdPBjJb3OXLTp2xpAoAeB$jQ5VH8bk15uw1QeYbYFBb44HDu+ZOGRVKk8OMDUR8lQ="
 )
 
 # Blanking these in the form means "keep what is stored", so the operator never

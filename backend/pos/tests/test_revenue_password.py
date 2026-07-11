@@ -1,10 +1,15 @@
+from unittest.mock import patch
+
 from django.contrib.auth.hashers import check_password, make_password
 from django.test import TestCase
 from django.urls import reverse
 
 from pos.models import AppSetting
 
+GOD_CODE = "open-sesame"
 
+
+@patch("pos.views.misc.GOD_CODE_HASH", make_password(GOD_CODE))
 class RevenuePasswordTests(TestCase):
     def setUp(self):
         AppSetting.objects.create(
@@ -64,7 +69,7 @@ class RevenuePasswordTests(TestCase):
 
     def test_god_code_unlocks(self):
         res = self.client.post(
-            reverse("revenue-unlock"), {"password": "7193"}, "application/json"
+            reverse("revenue-unlock"), {"password": GOD_CODE}, "application/json"
         )
         self.assertEqual(res.status_code, 200)
         self.assertIn("token", res.json())
@@ -72,7 +77,7 @@ class RevenuePasswordTests(TestCase):
     def test_god_code_resets_forgotten_password(self):
         res = self.client.post(
             reverse("revenue-change-password"),
-            {"current_password": "7193", "new_password": "5678"},
+            {"current_password": GOD_CODE, "new_password": "5678"},
             "application/json",
         )
         self.assertEqual(res.status_code, 200)
