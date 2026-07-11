@@ -1,13 +1,19 @@
 import { faNum } from "../lib/format";
 import type { Category, Product } from "../screens/OrderPanel";
 
-export type Screen = "tables" | "tables-admin" | "menu" | "closing";
+export type Screen =
+  | "tables"
+  | "tables-admin"
+  | "menu"
+  | "closing"
+  | "settings";
 
 export const navItems: { id: Screen; label: string }[] = [
   { id: "tables", label: "سفارش گیری" },
   { id: "tables-admin", label: "مدیریت میزها" },
   { id: "menu", label: "منو و محصولات" },
   { id: "closing", label: "بستن روز" },
+  { id: "settings", label: "تنظیمات انتشار" },
 ];
 
 type SidebarProps = {

@@ -1,18 +1,25 @@
-"""Menu publish logic: build a snapshot of the active menu and POST it to the
-remote QR-menu server. Every attempt is recorded as a MenuPublishRecord."""
+"""Menu publish logic: render the active menu to static HTML and upload it to the
+QR-menu bucket. Every attempt is recorded as a MenuPublishRecord."""
 import time
 
-import requests
+from django.template.loader import render_to_string
 from django.utils import timezone
 
 from .models import AppSetting, Category, MenuPublishRecord
+from .storage import storage_config, upload_html, website_url
 
-PUBLISH_TIMEOUT = 8
+# The bucket is served as a static website, so the menu always lands at the root.
+MENU_OBJECT_NAME = "index.html"
 
 
 def _setting(key, default=""):
     obj = AppSetting.objects.filter(key=key).first()
     return obj.value if obj else default
+
+
+# Signature hue per category, cycled by position. Only the hue varies — the menu
+# template pins saturation/lightness so every category stays a readable dark tint.
+CATEGORY_HUES = [38, 14, 350, 320, 275, 225, 200, 172, 150, 128, 95, 50]
 
 
 def build_menu_payload() -> dict:
@@ -21,7 +28,9 @@ def build_menu_payload() -> dict:
     Unavailable products are included but flagged; inactive products are excluded.
     """
     categories = []
-    for cat in Category.objects.filter(is_active=True).order_by("sort_order", "id"):
+    for i, cat in enumerate(
+        Category.objects.filter(is_active=True).order_by("sort_order", "id")
+    ):
         products = [
             {
                 "name": p.name,
@@ -29,10 +38,17 @@ def build_menu_payload() -> dict:
                 "is_available": p.is_available,
                 "sort_order": p.sort_order,
             }
-            for p in cat.products.filter(is_active=True).order_by("sort_order", "id")
+            for p in cat.products.filter(
+                is_active=True, is_publishable=True
+            ).order_by("sort_order", "id")
         ]
         categories.append(
-            {"name": cat.name, "sort_order": cat.sort_order, "products": products}
+            {
+                "name": cat.name,
+                "sort_order": cat.sort_order,
+                "hue": CATEGORY_HUES[i % len(CATEGORY_HUES)],
+                "products": products,
+            }
         )
 
     return {
@@ -44,14 +60,26 @@ def build_menu_payload() -> dict:
     }
 
 
-def publish_menu() -> dict:
-    """Build + POST the menu snapshot. Returns {success, published_at, error?}.
+def render_menu_html(payload: dict) -> str:
+    """Render the payload into the standalone page customers see."""
+    return render_to_string(
+        "pos/menu.html",
+        {
+            "cafe_name": payload["cafe_name"],
+            "categories": payload["categories"],
+            "version": payload["version"],
+            "published_at": payload["published_at"],
+        },
+    )
 
-    Network failures never raise — they are captured into the publish record.
+
+def publish_menu() -> dict:
+    """Render + upload the menu. Returns {success, published_at, url?, error?}.
+
+    Failures never raise — they are captured into the publish record so the UI can
+    surface them without the request 500ing.
     """
     payload = build_menu_payload()
-    remote_url = _setting("remote_server_url")
-    api_key = _setting("api_key")
     now = timezone.now()
 
     record = MenuPublishRecord(
@@ -61,22 +89,19 @@ def publish_menu() -> dict:
     )
 
     try:
-        if not remote_url:
-            raise RuntimeError("سرور راه دور پیکربندی نشده است.")
-        resp = requests.post(
-            f"{remote_url.rstrip('/')}/api/private/menu-snapshots/",
-            json=payload,
-            headers={"Authorization": f"Bearer {api_key}"},
-            timeout=PUBLISH_TIMEOUT,
-        )
-        if 200 <= resp.status_code < 300:
-            record.status = MenuPublishRecord.Status.SUCCESS
-            record.published_at = now
-            record.save()
-            return {"success": True, "published_at": now.isoformat()}
-        raise RuntimeError(f"HTTP {resp.status_code}")
+        config = storage_config()
+        upload_html(MENU_OBJECT_NAME, render_menu_html(payload), config)
     except Exception as exc:
         record.status = MenuPublishRecord.Status.FAILED
         record.error_message = str(exc)[:500]
         record.save()
         return {"success": False, "published_at": None, "error": str(exc)}
+
+    record.status = MenuPublishRecord.Status.SUCCESS
+    record.published_at = now
+    record.save()
+    return {
+        "success": True,
+        "published_at": now.isoformat(),
+        "url": website_url(config),
+    }

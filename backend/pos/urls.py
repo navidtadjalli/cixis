@@ -33,5 +33,15 @@ urlpatterns = [
         misc.revenue_change_password,
         name="revenue-change-password",
     ),
+    path(
+        "settings/publish/unlock/",
+        misc.publish_settings_unlock,
+        name="publish-settings-unlock",
+    ),
+    path(
+        "settings/publish/",
+        misc.publish_settings_save,
+        name="publish-settings-save",
+    ),
     path("", include(router.urls)),
 ]

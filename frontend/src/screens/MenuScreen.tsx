@@ -17,6 +17,7 @@ type Product = {
   description: string;
   price: number;
   is_available: boolean;
+  is_publishable: boolean;
   sort_order: number;
 };
 
@@ -32,6 +33,7 @@ type ProductFormState = {
   category: string;
   description: string;
   is_available: boolean;
+  is_publishable: boolean;
 };
 
 type ProductFormValues = {
@@ -40,6 +42,7 @@ type ProductFormValues = {
   category: number;
   description: string;
   is_available: boolean;
+  is_publishable: boolean;
 };
 
 type DialogState =
@@ -62,6 +65,7 @@ const emptyProductForm = (categoryId: number | null): ProductFormState => ({
   category: categoryId === null ? "" : String(categoryId),
   description: "",
   is_available: true,
+  is_publishable: true,
 });
 
 function productFormFromProduct(product: Product): ProductFormState {
@@ -71,6 +75,7 @@ function productFormFromProduct(product: Product): ProductFormState {
     category: String(product.category),
     description: product.description ?? "",
     is_available: product.is_available,
+    is_publishable: product.is_publishable,
   };
 }
 
@@ -313,7 +318,14 @@ export function MenuScreen() {
     }
 
     return {
-      values: { name, price, category, description, is_available: form.is_available },
+      values: {
+        name,
+        price,
+        category,
+        description,
+        is_available: form.is_available,
+        is_publishable: form.is_publishable,
+      },
     };
   };
 
@@ -337,6 +349,7 @@ export function MenuScreen() {
           price: parsed.values.price,
           category: parsed.values.category,
           is_available: parsed.values.is_available,
+          is_publishable: parsed.values.is_publishable,
         });
       }
 
@@ -575,9 +588,14 @@ export function MenuScreen() {
                       <h3 className="min-w-0 truncate text-base font-black text-text">
                         {product.name}
                       </h3>
-                      <Badge tone={product.is_available ? "good" : "default"}>
-                        {product.is_available ? "موجود" : "ناموجود"}
-                      </Badge>
+                      <div className="flex shrink-0 flex-col items-end gap-1">
+                        <Badge tone={product.is_available ? "good" : "default"}>
+                          {product.is_available ? "موجود" : "ناموجود"}
+                        </Badge>
+                        {!product.is_publishable && (
+                          <Badge tone="accent">پنهان از منو</Badge>
+                        )}
+                      </div>
                     </div>
 
                     <div className="mt-2 text-lg font-black text-accent">
@@ -730,7 +748,7 @@ export function MenuScreen() {
                 </select>
               </div>
 
-              <div className="md:col-span-2">
+              <div>
                 <span className="block text-sm font-semibold text-muted">وضعیت</span>
                 <button
                   type="button"
@@ -762,6 +780,43 @@ export function MenuScreen() {
                     />
                   </span>
                   {dialog.form.is_available ? "موجود" : "ناموجود"}
+                </button>
+              </div>
+
+              <div>
+                <span className="block text-sm font-semibold text-muted">
+                  نمایش در منوی منتشرشده
+                </span>
+                <button
+                  type="button"
+                  aria-pressed={dialog.form.is_publishable}
+                  onClick={() =>
+                    updateProductForm({
+                      ...dialog.form,
+                      is_publishable: !dialog.form.is_publishable,
+                    })
+                  }
+                  className={[
+                    "mt-2 inline-flex min-h-11 items-center gap-2 rounded-xl border px-4 text-base font-bold transition",
+                    dialog.form.is_publishable
+                      ? "border-accent/30 bg-accent/10 text-accent"
+                      : "border-border bg-[var(--surface-3)] text-muted",
+                  ].join(" ")}
+                >
+                  <span
+                    className={[
+                      "relative h-5 w-9 rounded-full transition",
+                      dialog.form.is_publishable ? "bg-accent/60" : "bg-border",
+                    ].join(" ")}
+                  >
+                    <span
+                      className={[
+                        "absolute top-1 h-3 w-3 rounded-full bg-text transition",
+                        dialog.form.is_publishable ? "right-5" : "right-1",
+                      ].join(" ")}
+                    />
+                  </span>
+                  {dialog.form.is_publishable ? "در منو" : "پنهان"}
                 </button>
               </div>
 

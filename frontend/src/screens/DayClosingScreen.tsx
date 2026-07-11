@@ -94,11 +94,12 @@ type Toast = {
 };
 
 const syncMeta: Partial<
-  Record<string, { label: string; tone: "good" | "warn" | "bad" }>
+  Record<string, { label: string; tone: "good" | "warn" | "bad" | "default" }>
 > = {
   synced: { label: "همگام‌شده", tone: "good" },
   pending: { label: "در انتظار همگام‌سازی", tone: "warn" },
   failed: { label: "ناموفق", tone: "bad" },
+  local_only: { label: "فقط محلی", tone: "default" },
 };
 
 function todayLocalDate() {

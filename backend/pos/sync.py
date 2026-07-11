@@ -1,8 +1,12 @@
 """Remote synchronization for day-closing records.
 
-Day close always succeeds locally; the remote POST is best-effort. When no remote
-server is configured (or it is unreachable) the DayClosing is left ``pending`` and
-a SyncRecord is queued for later retry (TASK-019).
+Day close always succeeds locally; the remote POST is best-effort. When the remote
+is configured but unreachable the DayClosing is left ``pending`` and a SyncRecord is
+queued for later retry (TASK-019).
+
+Sync is off by default. With ``sync_enabled`` false the close resolves straight to
+``local_only`` — a terminal state, so the closing screen shows no retry prompt for
+a push that is never going to happen.
 """
 import threading
 
@@ -13,10 +17,16 @@ from .models import AppSetting, DayClosing, SyncRecord
 
 SYNC_TIMEOUT = 5
 
+TRUTHY = {"1", "true", "yes", "on"}
+
 
 def _setting(key, default=""):
     obj = AppSetting.objects.filter(key=key).first()
     return obj.value if obj else default
+
+
+def sync_enabled() -> bool:
+    return _setting("sync_enabled", "false").strip().lower() in TRUTHY
 
 
 def _day_closing_payload(dc: DayClosing) -> dict:
@@ -62,6 +72,12 @@ def _mark_pending(dc: DayClosing, payload: dict, error: str):
     )
 
 
+def _mark_local_only(dc: DayClosing):
+    """Resolve the close without queueing anything: nothing will ever retry it."""
+    dc.sync_status = DayClosing.SyncStatus.LOCAL_ONLY
+    dc.save(update_fields=["sync_status", "updated_at"])
+
+
 def sync_day_closing(dc: DayClosing):
     """Attempt to push a single DayClosing to the remote server (synchronous)."""
     payload = _day_closing_payload(dc)
@@ -82,6 +98,9 @@ def sync_day_closing(dc: DayClosing):
 
 def retry_pending() -> dict:
     """Re-attempt every pending/failed SyncRecord. Returns a small result summary."""
+    if not sync_enabled():
+        return {"synced": 0, "failed": 0, "total": 0}
+
     records = SyncRecord.objects.filter(
         status__in=[SyncRecord.Status.PENDING, SyncRecord.Status.FAILED]
     )
@@ -121,9 +140,13 @@ def retry_pending() -> dict:
 def sync_day_closing_async(dc: DayClosing):
     """Kick off the sync attempt without blocking the close response.
 
-    If no remote server is configured we resolve synchronously to ``pending`` so the
-    result is deterministic and no idle thread is spawned.
+    Sync disabled resolves to ``local_only``; enabled-but-unconfigured resolves to
+    ``pending``. Both are synchronous so the result is deterministic and no idle
+    thread is spawned.
     """
+    if not sync_enabled():
+        _mark_local_only(dc)
+        return
     if not _setting("remote_server_url"):
         _mark_pending(dc, _day_closing_payload(dc), "سرور راه دور پیکربندی نشده است.")
         return

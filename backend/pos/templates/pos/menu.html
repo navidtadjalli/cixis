@@ -1,0 +1,364 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>منوی کافه {{ cafe_name }}</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0f1113;
+      --bg-soft: #15181c;
+      --card: #1b1f24;
+      --card-hover: #232931;
+      --text: #f6f2ea;
+      --muted: #9c948698;
+      --muted-solid: #b8b0a3;
+      --line: #2c323a;
+      --accent: #e0ac4d;
+      --accent-soft: rgba(224, 172, 77, 0.14);
+      --danger: #d36b6b;
+      --notice-bg: rgba(224, 172, 77, 0.1);
+      --shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+      --radius: 16px;
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(120% 60% at 50% -10%, #1a1d21 0%, var(--bg) 55%) fixed;
+      color: var(--text);
+      font-family: Tahoma, Arial, sans-serif;
+      line-height: 1.7;
+    }
+
+    main {
+      width: min(860px, 100%);
+      margin: 0 auto;
+      padding: 0 14px 56px;
+    }
+
+    header {
+      text-align: center;
+      padding: 34px 8px 22px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(1.8rem, 8vw, 2.7rem);
+      font-weight: 800;
+      letter-spacing: -0.01em;
+      line-height: 1.2;
+    }
+
+    .subtitle {
+      margin: 10px auto 0;
+      width: 64px;
+      height: 3px;
+      border-radius: 999px;
+      background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    }
+
+    /* --- category tab bar --- */
+    .tabs-wrap {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      margin: 0 -14px;
+      padding: 10px 14px;
+      background: rgba(15, 17, 19, 0.82);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .tabs {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+      scroll-padding: 14px;
+    }
+
+    .tabs::-webkit-scrollbar {
+      display: none;
+    }
+
+    .tab {
+      flex: 0 0 auto;
+      padding: 9px 18px;
+      border: 1px solid hsl(var(--hue) 25% 26%);
+      border-radius: 999px;
+      background: hsl(var(--hue) 30% 15%);
+      color: hsl(var(--hue) 45% 80%);
+      font-family: inherit;
+      font-size: 0.98rem;
+      font-weight: 700;
+      white-space: nowrap;
+      cursor: pointer;
+      transition: background 0.18s, color 0.18s, border-color 0.18s;
+    }
+
+    .tab:hover {
+      background: hsl(var(--hue) 32% 20%);
+      border-color: hsl(var(--hue) 45% 45%);
+    }
+
+    .tab.is-active {
+      background: hsl(var(--hue) 58% 56%);
+      border-color: hsl(var(--hue) 58% 56%);
+      color: hsl(var(--hue) 60% 10%);
+    }
+
+    /* --- item cards --- */
+    [hidden] {
+      display: none !important;
+    }
+
+    .category {
+      padding-top: 22px;
+    }
+
+    .notice {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 18px;
+      padding: 13px 16px;
+      border: 1px solid var(--accent);
+      border-radius: 12px;
+      background: var(--notice-bg);
+      color: var(--text);
+      font-size: 0.95rem;
+      font-weight: 600;
+    }
+
+    .notice svg {
+      flex: 0 0 auto;
+      color: var(--accent);
+    }
+
+    .items {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 14px;
+    }
+
+    .item {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 18px;
+      border: 1px solid hsl(var(--hue) 24% 20%);
+      border-radius: var(--radius);
+      background: linear-gradient(160deg,
+        hsl(var(--hue) 28% 13%), hsl(var(--hue) 30% 9%));
+      box-shadow: var(--shadow);
+      transition: transform 0.18s, border-color 0.18s;
+    }
+
+    .item:hover {
+      transform: translateY(-2px);
+      border-color: hsl(var(--hue) 50% 46%);
+    }
+
+    .item.unavailable {
+      opacity: 0.5;
+    }
+
+    .item.unavailable .name {
+      text-decoration: line-through;
+    }
+
+    .name {
+      margin: 0;
+      font-weight: 700;
+      font-size: 1.12rem;
+      color: hsl(var(--hue) 50% 84%);
+    }
+
+    .description {
+      margin: 6px 0 0;
+      color: hsl(var(--hue) 16% 68%);
+      font-size: 0.9rem;
+      line-height: 1.6;
+    }
+
+    .item-foot {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding-top: 12px;
+      border-top: 1px solid hsl(var(--hue) 22% 20%);
+    }
+
+    .price {
+      display: flex;
+      align-items: baseline;
+      gap: 5px;
+      white-space: nowrap;
+      color: hsl(var(--hue) 62% 66%);
+      font-weight: 800;
+      font-size: 1.18rem;
+    }
+
+    .price .unit {
+      color: hsl(var(--hue) 16% 66%);
+      font-size: 0.78rem;
+      font-weight: 600;
+    }
+
+    .tag {
+      padding: 3px 10px;
+      border-radius: 999px;
+      background: rgba(211, 107, 107, 0.16);
+      color: var(--danger);
+      font-size: 0.8rem;
+      font-weight: 700;
+    }
+
+    .empty {
+      margin-top: 28px;
+      padding: 28px;
+      border: 1px dashed var(--line);
+      border-radius: var(--radius);
+      background: var(--card);
+      color: var(--muted-solid);
+      text-align: center;
+    }
+
+    footer {
+      margin-top: 34px;
+      color: var(--muted);
+      text-align: center;
+      font-size: 0.8rem;
+    }
+
+    @media (max-width: 380px) {
+      .items {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>منوی کافه {{ cafe_name }}</h1>
+      <div class="subtitle"></div>
+    </header>
+
+    {% if categories %}
+      <nav class="tabs-wrap" aria-label="دسته‌بندی‌ها">
+        <div class="tabs" id="tabs">
+          {% for category in categories %}
+            <button type="button"
+                    class="tab {% if category.name == 'قهوه' %}is-active{% endif %}"
+                    style="--hue: {{ category.hue }}"
+                    data-target="cat-{{ forloop.counter }}">
+              {{ category.name }}
+            </button>
+          {% endfor %}
+        </div>
+      </nav>
+
+      {% for category in categories %}
+        <section class="category" id="cat-{{ forloop.counter }}"
+                 style="--hue: {{ category.hue }}"
+                 {% if category.name != 'قهوه' %}hidden{% endif %}>
+          {% if category.name == 'صبحانه' %}
+            <div class="notice">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
+                   stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                   stroke-linejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="9"></circle>
+                <path d="M12 7v5l3 2"></path>
+              </svg>
+              <span>سفارش آیتم‌های صبحانه فقط تا ساعت ۱۲ ظهر امکان‌پذیر است.</span>
+            </div>
+          {% endif %}
+          <div class="items">
+            {% for product in category.products %}
+              <article class="item {% if product.is_available == False %}unavailable{% endif %}">
+                <div>
+                  <p class="name">{{ product.name }}</p>
+                  {% if product.description %}
+                    <p class="description">{{ product.description }}</p>
+                  {% endif %}
+                </div>
+                <div class="item-foot">
+                  <span class="price">
+                    {{ product.price|floatformat:"0" }}
+                    <span class="unit">هزار تومان</span>
+                  </span>
+                  {% if product.is_available == False %}
+                    <span class="tag">ناموجود</span>
+                  {% endif %}
+                </div>
+              </article>
+            {% empty %}
+              <article class="item">
+                <p class="description">محصولی در این دسته ثبت نشده است.</p>
+              </article>
+            {% endfor %}
+          </div>
+        </section>
+      {% endfor %}
+    {% else %}
+      <section class="empty">
+        <p>برای این منو هنوز دسته‌بندی ثبت نشده است.</p>
+      </section>
+    {% endif %}
+
+    <footer>منوی کافه {{ cafe_name }}</footer>
+  </main>
+
+  <script>
+    (function () {
+      var tabsBar = document.getElementById("tabs");
+      var tabs = Array.prototype.slice.call(document.querySelectorAll(".tab"));
+      var panels = Array.prototype.slice.call(document.querySelectorAll(".category"));
+      if (!tabs.length) { return; }
+
+      // Fallback: if no server-marked default (قهوه missing), open the first.
+      if (!document.querySelector(".tab.is-active")) {
+        tabs[0].classList.add("is-active");
+        if (panels[0]) { panels[0].hidden = false; }
+      }
+
+      function activate(tab) {
+        var target = document.getElementById(tab.dataset.target);
+        if (!target) { return; }
+        panels.forEach(function (p) { p.hidden = true; });
+        tabs.forEach(function (t) { t.classList.remove("is-active"); });
+        target.hidden = false;
+        tab.classList.add("is-active");
+        tab.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
+      }
+
+      tabs.forEach(function (tab) {
+        tab.addEventListener("click", function () { activate(tab); });
+      });
+
+      // Center the active tab on load.
+      var active = document.querySelector(".tab.is-active");
+      if (active) {
+        active.scrollIntoView({ inline: "center", block: "nearest" });
+      }
+    })();
+  </script>
+</body>
+</html>
