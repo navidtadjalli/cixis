@@ -114,6 +114,7 @@ class ProductSerializer(serializers.ModelSerializer):
             "description",
             "price",
             "is_available",
+            "is_publishable",
             "is_active",
             "sort_order",
         ]

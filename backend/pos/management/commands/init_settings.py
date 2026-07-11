@@ -15,11 +15,21 @@ DEFAULTS = {
     "api_key": "dev-cixis-key",
     # revenue_password is stored hashed; default plaintext is "1234".
     "revenue_password": make_password("1234"),
+    # Day-closing push to the remote Django server. Off by default: the remote is
+    # optional and nothing reads what it receives.
+    "sync_enabled": "false",
+    # QR-menu bucket. Seeded blank on purpose -- no credential ships in the build.
+    # The operator fills these in under تنظیمات انتشار, behind the god code.
+    "s3_access_key": "",
+    "s3_secret_key": "",
+    "s3_bucket": "",
+    "s3_endpoint_url": "",
+    "s3_region": "",
 }
 
 
 class Command(BaseCommand):
-    help = "Create default app settings (cafe slug, remote server URL, API key, revenue password)."
+    help = "Create default app settings (cafe slug, sync toggle, storage config, revenue password)."
 
     def handle(self, *args, **options):
         created = 0

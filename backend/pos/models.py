@@ -52,6 +52,10 @@ class Product(TimeStamped):
     price = models.IntegerField(default=0)
     is_active = models.BooleanField(default=True)
     is_available = models.BooleanField(default=True)
+    # Whether this product appears in the published QR menu. Unlike is_available
+    # (in-stock flag, still shown but struck through), an unpublishable product is
+    # sold in-house via the POS but omitted from the public menu entirely.
+    is_publishable = models.BooleanField(default=True)
     sort_order = models.IntegerField(default=0)
 
     class Meta:
@@ -172,6 +176,9 @@ class DayClosing(TimeStamped):
         PENDING = "pending", "در انتظار"
         SYNCED = "synced", "همگام‌شده"
         FAILED = "failed", "ناموفق"
+        # Terminal: remote sync is switched off, so this close will never be
+        # pushed anywhere. Distinct from PENDING, which invites a retry.
+        LOCAL_ONLY = "local_only", "فقط محلی"
 
     # Not unique: closing is a cashier-driven settlement event, not a per-day
     # record. One calendar day may have several closings (or none), and a single

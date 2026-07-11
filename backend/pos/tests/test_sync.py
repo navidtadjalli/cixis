@@ -22,7 +22,32 @@ class SyncTests(TestCase):
             purchases_total=50,
         )
 
+    def _enable_sync(self):
+        AppSetting.objects.update_or_create(
+            key="sync_enabled", defaults={"value": "true"}
+        )
+
+    def test_sync_disabled_marks_local_only_and_queues_nothing(self):
+        sync_day_closing_async(self.day_closing)
+
+        self.day_closing.refresh_from_db()
+        self.assertEqual(
+            self.day_closing.sync_status, DayClosing.SyncStatus.LOCAL_ONLY
+        )
+        self.assertFalse(SyncRecord.objects.exists())
+
+    def test_retry_pending_is_a_noop_while_sync_is_disabled(self):
+        self._enable_sync()
+        sync_day_closing_async(self.day_closing)
+        AppSetting.objects.filter(key="sync_enabled").update(value="false")
+
+        self.assertEqual(retry_pending(), {"synced": 0, "failed": 0, "total": 0})
+        record = SyncRecord.objects.get(local_object_id=self.day_closing.id)
+        self.assertEqual(record.attempt_count, 0)
+
     def test_no_remote_async_leaves_day_closing_pending_and_creates_sync_record(self):
+        self._enable_sync()
+
         sync_day_closing_async(self.day_closing)
 
         self.day_closing.refresh_from_db()
@@ -32,6 +57,7 @@ class SyncTests(TestCase):
         self.assertEqual(record.attempt_count, 0)
 
     def test_retry_pending_increments_attempt_count_without_remote(self):
+        self._enable_sync()
         sync_day_closing_async(self.day_closing)
 
         result = retry_pending()
@@ -43,6 +69,7 @@ class SyncTests(TestCase):
 
     @patch("pos.sync.requests.post")
     def test_retry_pending_success_marks_record_and_day_closing_synced(self, post):
+        self._enable_sync()
         sync_day_closing_async(self.day_closing)
         AppSetting.objects.create(key="remote_server_url", value="https://example.test")
         AppSetting.objects.create(key="api_key", value="secret")

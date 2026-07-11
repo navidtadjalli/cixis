@@ -5,6 +5,7 @@ import { EventScreen } from "./screens/EventScreen";
 import { DayClosingScreen } from "./screens/DayClosingScreen";
 import { MenuScreen } from "./screens/MenuScreen";
 import { OrderPanel, type Category, type Product } from "./screens/OrderPanel";
+import { SettingsScreen } from "./screens/SettingsScreen";
 import { TablesScreen, type Table } from "./screens/TablesScreen";
 import { TablesAdminScreen } from "./screens/TablesAdminScreen";
 import { apiGet } from "./lib/api";
@@ -220,6 +221,8 @@ export default function App() {
                 <MenuScreen />
               ) : screen === "closing" ? (
                 unlocked ? <DayClosingScreen /> : <DayClosingGate />
+              ) : screen === "settings" ? (
+                <SettingsScreen />
               ) : null}
             </section>
           </div>
