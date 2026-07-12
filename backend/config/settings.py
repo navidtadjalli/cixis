@@ -11,7 +11,12 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Local-only machine: a fixed insecure key is acceptable (never exposed publicly).
 SECRET_KEY = "django-insecure-cixis-local-pos-key-change-not-needed-offline"
 
-DEBUG = True
+# Off unless explicitly asked for. DEBUG renders the traceback page — which
+# includes SECRET_KEY and the whole environment — on any 500, and makes Django
+# retain every SQL query it runs for the life of the process. Neither is
+# acceptable on a machine that sits unattended on a cafe counter all day.
+# The Electron shell sets CIXIS_DEBUG=1 only in dev (ELECTRON_DEV=1).
+DEBUG = os.environ.get("CIXIS_DEBUG", "0") == "1"
 
 ALLOWED_HOSTS = ["127.0.0.1", "localhost", "testserver"]
 

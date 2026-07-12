@@ -57,12 +57,65 @@ function backendEnv() {
     ...process.env,
     CIXIS_DB_PATH: dbPath(),
     CIXIS_BACKUP_DIR: path.join(dataDir(), "backups"),
+    // Packaged builds must never run Django with DEBUG on: its error page leaks
+    // SECRET_KEY and the environment, and it retains every SQL query it runs.
+    CIXIS_DEBUG: isDev ? "1" : "0",
   };
 }
 
 function logFilePath() {
   const dir = app.getPath("userData");
   return path.join(dir, "backend.log");
+}
+
+// backend.log is append-only and Django logs a line per request, including the
+// front-end's 30s table poll. A POS that runs for weeks without a restart would
+// otherwise grow it without bound, so keep the current log plus one previous.
+const LOG_MAX_BYTES = 5 * 1024 * 1024;
+const LOG_CHECK_MS = 60 * 60 * 1000;
+
+function logIsOversized() {
+  try {
+    return fs.statSync(logFilePath()).size > LOG_MAX_BYTES;
+  } catch (e) {
+    return false; // no log yet
+  }
+}
+
+function rotateLog() {
+  const p = logFilePath();
+  try {
+    fs.rmSync(`${p}.1`, { force: true });
+    fs.renameSync(p, `${p}.1`);
+  } catch (e) {
+    // best-effort: a failed rotation must never stop the backend from starting
+  }
+}
+
+// Pipe the backend's output to the log, rolling it over when it gets too big.
+function attachLog(proc) {
+  if (logIsOversized()) rotateLog();
+
+  let stream = fs.createWriteStream(logFilePath(), { flags: "a" });
+  proc.stdout.pipe(stream);
+  proc.stderr.pipe(stream);
+
+  const timer = setInterval(() => {
+    if (!logIsOversized()) return;
+    proc.stdout.unpipe(stream);
+    proc.stderr.unpipe(stream);
+    // Rotate only once the current stream has flushed, or the rename races the
+    // in-flight writes and we lose the tail of the log.
+    stream.end(() => {
+      rotateLog();
+      stream = fs.createWriteStream(logFilePath(), { flags: "a" });
+      proc.stdout.pipe(stream);
+      proc.stderr.pipe(stream);
+    });
+  }, LOG_CHECK_MS);
+  timer.unref();
+
+  proc.on("exit", () => clearInterval(timer));
 }
 
 // Pre-update safety: snapshot the DB before migrations run. If a new release
@@ -131,14 +184,21 @@ function startDjango() {
     runManage(py, backendDir, ["seed_tables"]);
   }
 
-  const logStream = fs.createWriteStream(logFilePath(), { flags: "a" });
   djangoProc = spawn(
     py,
-    ["manage.py", "runserver", `127.0.0.1:${BACKEND_PORT}`, "--noreload"],
+    [
+      "manage.py",
+      "runserver",
+      `127.0.0.1:${BACKEND_PORT}`,
+      "--noreload",
+      // With DEBUG off, runserver stops serving static files, which would break
+      // the bundled /admin/ pages. We're bound to 127.0.0.1, so serving them is
+      // as safe here as it was when DEBUG was doing it implicitly.
+      "--insecure",
+    ],
     { cwd: backendDir, env: backendEnv() },
   );
-  djangoProc.stdout.pipe(logStream);
-  djangoProc.stderr.pipe(logStream);
+  attachLog(djangoProc);
 }
 
 function waitForBackend(retries = 40) {
@@ -207,15 +267,30 @@ function initAutoUpdate() {
   autoUpdater.checkForUpdatesAndNotify().catch(() => {});
 }
 
-app.whenReady().then(() => {
-  startDjango();
-  createWindow();
-  initAutoUpdate();
-
-  app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+// A second launch (staff double-clicking the icon) would otherwise bring up a
+// whole second Electron *and* a second Django fighting over port 8000, doubling
+// the machine's memory for a window nobody asked for. Hand focus to the running
+// instance instead. Bail before whenReady so the duplicate never spawns Django.
+if (!app.requestSingleInstanceLock()) {
+  app.quit();
+} else {
+  app.on("second-instance", () => {
+    if (!mainWindow) return;
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show();
+    mainWindow.focus();
   });
-});
+
+  app.whenReady().then(() => {
+    startDjango();
+    createWindow();
+    initAutoUpdate();
+
+    app.on("activate", () => {
+      if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    });
+  });
+}
 
 function killDjango() {
   if (djangoProc && !djangoProc.killed) {
