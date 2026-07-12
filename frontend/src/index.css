@@ -76,8 +76,12 @@ body {
   }
 }
 
-/* ---- Animated background (clouds + green field + camels) ---- */
-/* All motion is GPU transform/opacity only — no JS loop, cheap to run. */
+/* ---- Static background (sky + clouds + green field) ---- */
+/* Deliberately motionless. The cafe machine composites in software, so any
+   moving layer here is charged to the CPU forever, for decoration nobody is
+   looking at. This paints once and then costs nothing. Keep it that way: no
+   animation, no transition, and no `will-change` (which would pin a compositor
+   layer per element even with nothing animating). */
 .anim-bg {
   position: fixed;
   inset: 0;
@@ -94,21 +98,7 @@ body {
 
 .anim-cloud {
   position: absolute;
-  left: 0;
-  will-change: transform;
-  transform: translateX(-220px) scale(var(--cloud-scale, 1));
-  animation-name: cloud-drift;
-  animation-timing-function: linear;
-  animation-iteration-count: infinite;
-}
-
-@keyframes cloud-drift {
-  from {
-    transform: translateX(-220px) scale(var(--cloud-scale, 1));
-  }
-  to {
-    transform: translateX(100vw) scale(var(--cloud-scale, 1));
-  }
+  transform: scale(var(--cloud-scale, 1));
 }
 
 .anim-field {
@@ -119,52 +109,6 @@ body {
   height: 26%;
   background:
     linear-gradient(180deg, rgba(34, 84, 44, 0) 0%, rgba(34, 84, 44, 0.55) 35%, rgba(22, 60, 30, 0.7) 100%);
-}
-
-.anim-camel {
-  position: absolute;
-  left: 0;
-  opacity: 0.55;
-  will-change: transform;
-  animation-name: camel-walk;
-  animation-timing-function: linear;
-  animation-iteration-count: infinite;
-}
-
-/* camels travelling the other way: reverse path + flip the sprite */
-.anim-camel--rev {
-  animation-name: camel-walk-rev;
-  animation-direction: reverse;
-}
-
-/* Movement stays on `transform` so the compositor owns it. Animating `left`
-   instead re-runs layout + repaint of the full-screen backdrop on every frame,
-   for every camel. */
-@keyframes camel-walk {
-  from {
-    transform: translateX(-90px);
-  }
-  to {
-    transform: translateX(100vw);
-  }
-}
-
-/* An element has one transform, so the sprite flip has to ride along with the
-   movement rather than sit in a separate rule. */
-@keyframes camel-walk-rev {
-  from {
-    transform: translateX(-90px) scaleX(-1);
-  }
-  to {
-    transform: translateX(100vw) scaleX(-1);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .anim-cloud,
-  .anim-camel {
-    animation: none;
-  }
 }
 
 /* Slim dark scrollbars */
