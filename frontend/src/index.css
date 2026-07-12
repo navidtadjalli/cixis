@@ -133,16 +133,30 @@ body {
 
 /* camels travelling the other way: reverse path + flip the sprite */
 .anim-camel--rev {
+  animation-name: camel-walk-rev;
   animation-direction: reverse;
-  transform: scaleX(-1);
 }
 
+/* Movement stays on `transform` so the compositor owns it. Animating `left`
+   instead re-runs layout + repaint of the full-screen backdrop on every frame,
+   for every camel. */
 @keyframes camel-walk {
   from {
-    left: -90px;
+    transform: translateX(-90px);
   }
   to {
-    left: 100vw;
+    transform: translateX(100vw);
+  }
+}
+
+/* An element has one transform, so the sprite flip has to ride along with the
+   movement rather than sit in a separate rule. */
+@keyframes camel-walk-rev {
+  from {
+    transform: translateX(-90px) scaleX(-1);
+  }
+  to {
+    transform: translateX(100vw) scaleX(-1);
   }
 }
 
