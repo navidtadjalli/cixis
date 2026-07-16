@@ -6,6 +6,7 @@ import { DayClosingScreen } from "./screens/DayClosingScreen";
 import { MenuScreen } from "./screens/MenuScreen";
 import { OrderPanel, type Category, type Product } from "./screens/OrderPanel";
 import { SettingsScreen } from "./screens/SettingsScreen";
+import { SetupScreen } from "./screens/SetupScreen";
 import { TablesScreen, type Table } from "./screens/TablesScreen";
 import { TablesAdminScreen } from "./screens/TablesAdminScreen";
 import { apiGet } from "./lib/api";
@@ -73,24 +74,26 @@ export default function App() {
     };
   }, []);
 
-  useEffect(() => {
-    let ignore = false;
-
-    void (async () => {
-      try {
-        const list = await apiGet<Category[]>("/categories/");
-        if (!ignore) {
-          setCategories(list);
-        }
-      } catch {
-        // Sidebar simply shows "no categories" if this fails.
-      }
-    })();
-
-    return () => {
-      ignore = true;
-    };
+  const refreshCategories = useCallback(async () => {
+    try {
+      setCategories(await apiGet<Category[]>("/categories/"));
+    } catch {
+      // Sidebar simply shows "no categories" if this fails.
+    }
   }, []);
+
+  useEffect(() => {
+    void refreshCategories();
+  }, [refreshCategories]);
+
+  // The setup screen creates and wipes tables and menu rows behind these lists,
+  // so re-read both and drop a category selection that may no longer exist.
+  const handleSetupDataChanged = useCallback(() => {
+    void refreshTables().catch(() => undefined);
+    void refreshCategories();
+    setSelectedCategoryId(null);
+    setProducts([]);
+  }, [refreshCategories, refreshTables]);
 
   const handleSelectCategory = useCallback(
     (categoryId: number) => {
@@ -221,6 +224,8 @@ export default function App() {
                 <MenuScreen />
               ) : screen === "closing" ? (
                 unlocked ? <DayClosingScreen /> : <DayClosingGate />
+              ) : screen === "setup" ? (
+                <SetupScreen onDataChanged={handleSetupDataChanged} />
               ) : screen === "settings" ? (
                 <SettingsScreen />
               ) : null}

@@ -32,6 +32,9 @@ files:
 extraResources:
   - from: ../menu.json
     to: menu.json
+  # Loaded on demand by the setup screen's menu button, not at first launch.
+  - from: ../menu.majaz.json
+    to: menu.majaz.json
   - from: ../tables.json
     to: tables.json
   - from: ../backend

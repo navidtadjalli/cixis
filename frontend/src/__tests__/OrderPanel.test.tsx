@@ -42,6 +42,7 @@ const baseOrder = {
       product_name_snapshot: "لاته",
       unit_price_snapshot: 100,
       quantity: 2,
+      paid_quantity: 0,
       line_total: 200,
     },
   ],

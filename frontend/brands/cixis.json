@@ -5,6 +5,23 @@
   "shortcutName": "CiXiS",
   "logoGlyph": "Ç",
   "cafeName": "خروج",
+  "events": {
+    "mode": "حالت رویداد",
+    "title": "سفارش‌های رویداد",
+    "subtitle": "سفارش بدون میز برای مهمان‌های بیرون‌بر یا رویداد ثبت می‌شود.",
+    "identifierLabel": "نام یا شماره شخص",
+    "identifierPlaceholder": "مثلا مهمان ۱۲",
+    "identifierMissing": "نام یا شماره شخص را وارد کنید",
+    "createAction": "ایجاد سفارش",
+    "activeTitle": "سفارش‌های فعال",
+    "searchPlaceholder": "جستجوی نام",
+    "countUnit": "سفارش",
+    "loading": "در حال دریافت سفارش‌های رویداد...",
+    "empty": "هنوز سفارش رویداد فعالی ثبت نشده است.",
+    "notFound": "سفارشی با این نام پیدا نشد.",
+    "loadError": "دریافت سفارش‌های رویداد ناموفق بود",
+    "createError": "ایجاد سفارش رویداد ناموفق بود"
+  },
   "colors": {
     "accent": "#e0a96d",
     "accent2": "#c98a4b",

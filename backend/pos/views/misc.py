@@ -38,6 +38,13 @@ def _revenue_setting():
     )[0]
 
 
+def check_revenue_password(supplied: str) -> bool:
+    """True if ``supplied`` is the revenue password or the god code override."""
+    return check_password(supplied, GOD_CODE_HASH) or check_password(
+        supplied, _revenue_setting().value
+    )
+
+
 @api_view(["POST"])
 def menu_publish(request):
     """Build the menu snapshot and push it to the remote QR server."""
@@ -55,11 +62,7 @@ def sync_retry(request):
 @api_view(["POST"])
 def revenue_unlock(request):
     """Validate the revenue password and return a short-lived reveal token."""
-    setting = _revenue_setting()
-    supplied = str(request.data.get("password", ""))
-    if not check_password(supplied, GOD_CODE_HASH) and not check_password(
-        supplied, setting.value
-    ):
+    if not check_revenue_password(str(request.data.get("password", ""))):
         return Response(
             {"detail": "رمز عبور نادرست است."}, status=status.HTTP_401_UNAUTHORIZED
         )
@@ -156,11 +159,8 @@ def publish_settings_save(request):
 def revenue_change_password(request):
     """Verify the current revenue password and set a new one."""
     setting = _revenue_setting()
-    current = str(request.data.get("current_password", ""))
     new = str(request.data.get("new_password", ""))
-    if not check_password(current, GOD_CODE_HASH) and not check_password(
-        current, setting.value
-    ):
+    if not check_revenue_password(str(request.data.get("current_password", ""))):
         return Response(
             {"detail": "رمز عبور فعلی نادرست است."},
             status=status.HTTP_401_UNAUTHORIZED,

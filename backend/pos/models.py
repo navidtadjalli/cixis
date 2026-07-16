@@ -98,6 +98,11 @@ class Order(TimeStamped, UserStamped):
         related_name="orders",
     )
     event_customer_label = models.CharField(max_length=160, null=True, blank=True)
+    # Bulk-generated event "code" slots, created ahead of service from the setup
+    # page. Until an item is rung up on one it behaves like a table, not an
+    # order: it survives leaving the order panel, stays out of the closing
+    # register, and is not settled by a close. See closing.untouched_preset_ids.
+    is_preset = models.BooleanField(default=False)
     status = models.CharField(
         max_length=20, choices=Status.choices, default=Status.OPEN
     )

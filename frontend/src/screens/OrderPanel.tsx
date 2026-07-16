@@ -31,6 +31,7 @@ type Order = {
   table: number | null;
   table_name: string | null;
   event_customer_label: string | null;
+  is_preset: boolean;
   status: OrderStatus;
   subtotal: number;
   paid_amount: number;
@@ -426,9 +427,12 @@ export function OrderPanel({
 
   // Returning to the tables list discards an untouched order (no items, no
   // payments) so the table reads as free instead of holding a phantom order.
+  // Preset codes are exempt: they were created up front to sit in the event
+  // list, so backing out of one empty must leave it there.
   const handleBack = async () => {
     if (
       order &&
+      !order.is_preset &&
       sortedItems.length === 0 &&
       !isLocked &&
       order.payments.length === 0 &&

@@ -1,7 +1,7 @@
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
-from .views import api_root, day_closing, misc, reports
+from .views import api_root, day_closing, misc, reports, setup
 from .views.menu import CategoryViewSet, ProductViewSet
 from .views.orders import OrderItemViewSet, OrderViewSet
 from .views.resources import ResourcePurchaseListCreate
@@ -42,6 +42,16 @@ urlpatterns = [
         "settings/publish/",
         misc.publish_settings_save,
         name="publish-settings-save",
+    ),
+    path("setup/tables/wipe/", setup.wipe_tables, name="setup-wipe-tables"),
+    path("setup/orders/wipe/", setup.wipe_orders, name="setup-wipe-orders"),
+    path("setup/menu/wipe/", setup.wipe_menu, name="setup-wipe-menu"),
+    path("setup/menu/load/", setup.load_menu, name="setup-load-menu"),
+    path("setup/tables/bulk/", setup.bulk_tables, name="setup-bulk-tables"),
+    path(
+        "setup/event-codes/bulk/",
+        setup.bulk_event_codes,
+        name="setup-bulk-event-codes",
     ),
     path("", include(router.urls)),
 ]

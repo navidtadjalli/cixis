@@ -26,6 +26,9 @@ extraResources:
   # BASE_DIR.parent (= resources/), so they must ship next to the backend dir.
   - from: ../menu.json
     to: menu.json
+  # Loaded on demand by the setup screen's menu button, not at first launch.
+  - from: ../menu.majaz.json
+    to: menu.majaz.json
   - from: ../tables.json
     to: tables.json
   # Ships Django source + its deps (pylibs/, built by backend/build-win-python.sh).

@@ -17,6 +17,20 @@ from .models import (
 )
 
 
+def untouched_preset_ids():
+    """Ids of preset event codes nobody has rung anything up on.
+
+    A preset code is a slot, like a table — bulk-created ahead of service so the
+    cashier can find a guest by name. Until an item or payment lands on it, it is
+    not an order and must stay out of the register: otherwise a hundred unused
+    codes each read as an unresolved open order, and the close would settle them
+    away, deleting the very list the operator set up.
+    """
+    return Order.objects.filter(
+        is_preset=True, items__isnull=True, payments__isnull=True
+    ).values_list("id", flat=True)
+
+
 def compute_day_summary(business_date: date | None) -> dict:
     """Aggregate totals for the live register or a single historical date.
 
@@ -32,7 +46,9 @@ def compute_day_summary(business_date: date | None) -> dict:
     """
     # Only orders not yet settled into a DayClosing count toward the live
     # summary; closing a day links its orders so the next shift starts at zero.
-    orders = Order.objects.filter(day_closing__isnull=True)
+    orders = Order.objects.filter(day_closing__isnull=True).exclude(
+        id__in=untouched_preset_ids()
+    )
     payments = Payment.objects.filter(order__day_closing__isnull=True)
     if business_date is not None:
         orders = orders.filter(business_date=business_date)

@@ -7,6 +7,7 @@ export type Screen =
   | "tables-admin"
   | "menu"
   | "closing"
+  | "setup"
   | "settings";
 
 export const navItems: { id: Screen; label: string }[] = [
@@ -14,6 +15,7 @@ export const navItems: { id: Screen; label: string }[] = [
   { id: "tables-admin", label: "مدیریت میزها" },
   { id: "menu", label: "منو و محصولات" },
   { id: "closing", label: "بستن روز" },
+  { id: "setup", label: "راه‌اندازی" },
   { id: "settings", label: "تنظیمات انتشار" },
 ];
 

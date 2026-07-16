@@ -78,7 +78,11 @@ def close(request):
     # Settle the orders into this closing so the live preview resets to zero.
     # Live close settles every unsettled order (the whole open session, even if
     # it crossed midnight); a dated close settles only that day's orders.
-    settle = Order.objects.filter(day_closing__isnull=True)
+    # Untouched preset codes are slots, not orders — they outlive the close the
+    # same way a table does.
+    settle = Order.objects.filter(day_closing__isnull=True).exclude(
+        id__in=closing.untouched_preset_ids()
+    )
     if not live:
         settle = settle.filter(business_date=target)
     settle.update(day_closing=day_closing)

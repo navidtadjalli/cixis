@@ -75,6 +75,7 @@ class OrderSerializer(serializers.ModelSerializer):
             "table_id",
             "table_name",
             "event_customer_label",
+            "is_preset",
             "status",
             "subtotal",
             "paid_amount",
@@ -88,6 +89,7 @@ class OrderSerializer(serializers.ModelSerializer):
         read_only_fields = [
             "id",
             "order_number",
+            "is_preset",
             "subtotal",
             "paid_amount",
             "remaining_amount",

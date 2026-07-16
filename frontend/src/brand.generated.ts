@@ -4,4 +4,21 @@ export const brand = {
   productName: "مَجاز",
   logoGlyph: "مَ",
   cafeName: "مَجاز",
+  events: {
+    "mode": "کدهای دعوت",
+    "title": "کدهای دعوت",
+    "subtitle": "سفارش بدون میز، روی کد دعوت مهمان ثبت می‌شود.",
+    "identifierLabel": "کد دعوت",
+    "identifierPlaceholder": "مثلا الف۱۲",
+    "identifierMissing": "کد دعوت را وارد کنید",
+    "createAction": "ایجاد کد",
+    "activeTitle": "کدهای فعال",
+    "searchPlaceholder": "جستجوی کد",
+    "countUnit": "کد",
+    "loading": "در حال دریافت کدهای دعوت...",
+    "empty": "هنوز کد دعوت فعالی ثبت نشده است.",
+    "notFound": "کدی با این نام پیدا نشد.",
+    "loadError": "دریافت کدهای دعوت ناموفق بود",
+    "createError": "ایجاد کد دعوت ناموفق بود"
+  },
 } as const;

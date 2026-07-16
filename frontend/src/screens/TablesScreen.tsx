@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { ApiError, apiPost } from "../lib/api";
 import { faTime, money, UNIT } from "../lib/format";
+import { brand } from "../brand.generated";
 import { Button } from "../components/ui";
 
 type TableStatus =
@@ -94,7 +95,7 @@ export function TablesScreen({
     <div className="flex min-h-full flex-col gap-6">
       <div className="flex flex-wrap items-center justify-end gap-3">
         <Button variant="ghost" onClick={onEventMode}>
-          حالت رویداد
+          {brand.events.mode}
         </Button>
       </div>
 
