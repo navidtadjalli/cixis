@@ -35,10 +35,10 @@ jobs:
       - name: Build embedded Python backend bundle
         run: python backend\build_win_python.py
 
-      # v1.2.3 -> 1.2.3. Fed to electron-builder as the app version so the
-      # published latest.yml matches the tag — electron-updater compares against
-      # that file, so a stale package.json version would hide the release from
-      # installed clients. Manual runs leave it empty (no --publish either).
+      # v1.2.3 -> 1.2.3. Becomes the app version so the published latest.yml
+      # matches the tag — electron-updater compares against that file, so a stale
+      # version would hide the release from installed clients. Manual runs leave
+      # it empty (no version override, no --publish either).
       - name: Derive version from tag
         shell: pwsh
         run: |
@@ -50,6 +50,16 @@ jobs:
         working-directory: frontend
         run: npm ci
 
+      # Write the version into package.json rather than passing electron-builder
+      # `-c.extraMetadata.version=X`: npm's own arg parser claims `-c` and splits
+      # the value off, so electron-builder receives `.extraMetadata.version=X` as
+      # a config *file path* and dies with ENOENT. electron-builder reads the app
+      # version from package.json anyway; the committed value is a dev default.
+      - name: Apply version from tag
+        if: env.APP_VERSION != ''
+        working-directory: frontend
+        run: npm pkg set version=${{ env.APP_VERSION }}
+
       # On a version tag: build AND publish to GitHub Releases so electron-updater
       # can find it (uploads the .exe plus the latest.yml feed). Manual/branch
       # runs just build, no publish.
@@ -59,7 +69,6 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: >-
           npm run electron:build --
-          ${{ env.APP_VERSION != '' && format('-c.extraMetadata.version={0}', env.APP_VERSION) || '' }}
           ${{ startsWith(github.ref, 'refs/tags/v') && '--publish always' || '--publish never' }}
 
       - name: Upload installer artifact
