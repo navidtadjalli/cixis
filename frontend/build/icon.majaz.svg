@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <!-- مَجاز app icon: wine rounded square, light meem+fatha glyph.
+       Design source. Rasterize to icon.majaz.png / icon.majaz.ico via
+       `node scripts/gen-icons.mjs` (see that script's header for deps/fonts). -->
+  <rect width="512" height="512" rx="112" fill="#7b2d3b"/>
+  <text x="256" y="300" text-anchor="middle"
+        font-family="Vazirmatn, Tahoma, 'Segoe UI', sans-serif"
+        font-weight="700" font-size="300" fill="#f6e7ea">مَ</text>
+</svg>

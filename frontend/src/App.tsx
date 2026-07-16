@@ -172,7 +172,7 @@ export default function App() {
                       className={[
                         "rounded-xl px-4 py-2 text-sm font-bold transition",
                         isActive
-                          ? "bg-accent text-[#1b1206] shadow-lg shadow-black/20"
+                          ? "bg-accent text-on-accent shadow-lg shadow-black/20"
                           : "text-text hover:bg-surface",
                       ].join(" ")}
                       aria-current={isActive ? "page" : undefined}

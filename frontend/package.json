@@ -5,13 +5,21 @@
   "type": "module",
   "main": "electron/main.cjs",
   "scripts": {
+    "gen:brand": "node scripts/gen-brand.mjs",
+    "predev": "npm run gen:brand",
     "dev": "vite",
+    "prebuild": "npm run gen:brand",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
+    "pretest": "npm run gen:brand",
     "test": "vitest run",
     "test:watch": "vitest",
+    "preelectron:dev": "npm run gen:brand",
     "electron:dev": "concurrently -k \"vite\" \"wait-on tcp:5173 && cross-env ELECTRON_RUN_AS_NODE= ELECTRON_DEV=1 electron .\"",
-    "electron:build": "tsc -b && vite build && electron-builder --config electron-builder.yml"
+    "preelectron:build": "npm run gen:brand",
+    "electron:build": "tsc -b && vite build && electron-builder --config electron-builder.yml",
+    "build:majaz:steps": "npm run gen:brand && tsc -b && vite build && electron-builder --config electron-builder.majaz.yml",
+    "electron:build:majaz": "cross-env BRAND=majaz npm run build:majaz:steps"
   },
   "dependencies": {
     "@fontsource/vazirmatn": "^5.0.18",

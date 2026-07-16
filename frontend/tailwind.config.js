@@ -17,6 +17,7 @@ export default {
         muted: "var(--muted)",
         accent: "var(--accent)",
         "accent-2": "var(--accent-2)",
+        "on-accent": "var(--on-accent)",
         good: "var(--good)",
         warn: "var(--warn)",
         bad: "var(--bad)",

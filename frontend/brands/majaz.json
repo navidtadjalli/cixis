@@ -1,0 +1,14 @@
+{
+  "id": "majaz",
+  "appId": "com.majaz.pos",
+  "productName": "مَجاز",
+  "shortcutName": "مَجاز",
+  "logoGlyph": "مَ",
+  "cafeName": "مَجاز",
+  "colors": {
+    "accent": "#7b2d3b",
+    "accent2": "#5f2029",
+    "brand": "#7b2d3b",
+    "onAccent": "#f6e7ea"
+  }
+}

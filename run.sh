@@ -1,11 +1,16 @@
 #!/usr/bin/env bash
-# CiXiS dev launcher.
+# CiXiS / Majaz dev launcher.
 # Starts the optional remote QR-menu server (:9000), then launches the Electron
 # desktop app (which itself spawns the local Django backend on :8000).
 #
 # Usage:
-#   ./run.sh            # remote server + Electron app
-#   ./run.sh --no-remote
+#   ./run.sh                  # CiXiS (amber) — remote server + Electron app
+#   ./run.sh majaz            # Majaz (wine, مَ logo)
+#   ./run.sh cixis --no-remote
+#   ./run.sh majaz --no-remote
+#
+# The brand only changes the UI theme + logo glyph (via BRAND -> gen:brand,
+# run by the preelectron:dev npm hook). Same features, same backend.
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -16,7 +21,17 @@ unset ELECTRON_RUN_AS_NODE
 
 PY313="$(command -v python3.13 || true)"
 START_REMOTE=1
-[ "${1:-}" = "--no-remote" ] && START_REMOTE=0
+BRAND="cixis"
+for arg in "$@"; do
+  case "$arg" in
+    --no-remote) START_REMOTE=0 ;;
+    cixis|majaz) BRAND="$arg" ;;
+    --brand=*) BRAND="${arg#--brand=}" ;;
+    *) echo "[run] unknown arg: $arg (use: cixis|majaz [--no-remote])" >&2; exit 2 ;;
+  esac
+done
+export BRAND
+echo "[brand] $BRAND"
 
 # Free a TCP port by killing whatever listens on it (handles orphans from a
 # previous run that was hard-killed, e.g. Ctrl-C leaving Django behind).

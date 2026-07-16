@@ -1,0 +1,14 @@
+{
+  "id": "cixis",
+  "appId": "com.cixis.pos",
+  "productName": "CiXiS",
+  "shortcutName": "CiXiS",
+  "logoGlyph": "Ç",
+  "cafeName": "خروج",
+  "colors": {
+    "accent": "#e0a96d",
+    "accent2": "#c98a4b",
+    "brand": "#e0a96d",
+    "onAccent": "#1b1206"
+  }
+}

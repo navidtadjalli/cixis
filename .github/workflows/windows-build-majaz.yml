@@ -1,0 +1,73 @@
+name: Build مَجاز (Majaz) EXE
+
+# Same pipeline as windows-build.yml (CiXiS) but for the Majaz brand, triggered
+# by a separate tag namespace so the two products build and publish independently.
+#   CiXiS : tag  v*      -> GitHub Releases feed
+#   Majaz : tag  m-v*    -> Arvan S3 feed (this workflow)
+on:
+  push:
+    tags:
+      - "m-v*"       # e.g. m-v1.0.0
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  build-majaz:
+    runs-on: windows-latest
+    env:
+      BRAND: majaz
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Build embedded Python backend bundle
+        run: python backend\build_win_python.py
+
+      # m-v1.2.3 -> 1.2.3. Fed to electron-builder as the app version so the S3
+      # latest.yml matches; manual runs leave it empty (no --publish).
+      - name: Derive version from tag
+        shell: pwsh
+        run: |
+          $v = "${{ github.ref_name }}" -replace '^m-v',''
+          if ("${{ github.ref }}" -notlike 'refs/tags/m-v*') { $v = '' }
+          "APP_VERSION=$v" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Install frontend deps
+        working-directory: frontend
+        run: npm ci
+
+      # electron:build:majaz regenerates the wine theme + مَ glyph (BRAND=majaz)
+      # then builds with electron-builder.majaz.yml. On a m-v* tag it publishes to
+      # the Arvan S3 update feed; the s3 provider reads these AWS_* creds.
+      - name: Build Majaz installer
+        working-directory: frontend
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.ARVAN_S3_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.ARVAN_S3_SECRET_KEY }}
+          ARVAN_S3_ENDPOINT: ${{ secrets.ARVAN_S3_ENDPOINT }}
+          ARVAN_S3_REGION: ${{ secrets.ARVAN_S3_REGION }}
+          ARVAN_S3_BUCKET: ${{ secrets.ARVAN_S3_BUCKET }}
+        run: >-
+          npm run electron:build:majaz --
+          ${{ env.APP_VERSION != '' && format('-c.extraMetadata.version={0}', env.APP_VERSION) || '' }}
+          ${{ startsWith(github.ref, 'refs/tags/m-v') && '--publish always' || '--publish never' }}
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: majaz-windows-installer
+          path: frontend/release/*.exe
+          if-no-files-found: error

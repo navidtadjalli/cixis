@@ -1,3 +1,5 @@
+import { brand } from "../brand.generated";
+
 type WindowControls = {
   platform: string;
   minimize: () => void;
@@ -17,10 +19,10 @@ export function Titlebar() {
       className="[-webkit-app-region:drag] flex h-11 flex-none items-center justify-between border-b border-border bg-surface px-3 text-text"
     >
       <div className="flex items-center gap-2">
-        <div className="grid h-7 w-7 place-items-center rounded-lg bg-accent text-sm font-black text-[#1b1206]">
-          Ç
+        <div className="grid h-7 w-7 place-items-center rounded-lg bg-accent text-sm font-black text-on-accent">
+          {brand.logoGlyph}
         </div>
-        <span className="text-sm font-bold tracking-normal">خروج</span>
+        <span className="text-sm font-bold tracking-normal">{brand.cafeName}</span>
       </div>
 
       <div

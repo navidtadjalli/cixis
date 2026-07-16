@@ -1,4 +1,5 @@
 import { faNum } from "../lib/format";
+import { brand } from "../brand.generated";
 import type { Category, Product } from "../screens/OrderPanel";
 
 export type Screen =
@@ -51,11 +52,11 @@ export function Sidebar({
   return (
     <aside className="flex w-[26rem] flex-none flex-col border-l border-border bg-surface px-3 py-5">
       <div className="mb-5 flex items-center gap-3">
-        <div className="grid h-11 w-11 place-items-center rounded-xl bg-accent text-xl font-black text-[#1b1206]">
-          Ç
+        <div className="grid h-11 w-11 place-items-center rounded-xl bg-accent text-xl font-black text-on-accent">
+          {brand.logoGlyph}
         </div>
         <div className="min-w-0">
-          <div className="text-base font-bold text-text">کافه خروج</div>
+          <div className="text-base font-bold text-text">کافه {brand.cafeName}</div>
           <div className="text-xs text-muted">صندوق فروش</div>
         </div>
       </div>
@@ -80,7 +81,7 @@ export function Sidebar({
                 className={[
                   "w-full rounded-xl border px-3 py-1.5 text-right text-lg font-bold transition",
                   isActive
-                    ? "border-accent bg-accent text-[#1b1206] shadow-lg shadow-black/20"
+                    ? "border-accent bg-accent text-on-accent shadow-lg shadow-black/20"
                     : "border-border bg-surface-2 text-text hover:bg-[var(--surface-3)]",
                 ].join(" ")}
                 aria-current={isActive ? "true" : undefined}

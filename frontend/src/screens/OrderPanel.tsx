@@ -615,7 +615,7 @@ export function OrderPanel({
                     className={[
                       "h-10 rounded-xl border text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-40",
                       paymentMethod === method.value
-                        ? "border-accent bg-accent text-[#1b1206]"
+                        ? "border-accent bg-accent text-on-accent"
                         : "border-border bg-surface-2 text-muted hover:bg-[var(--surface-3)] hover:text-text",
                     ].join(" ")}
                     disabled={isLocked || isSubmitting}
@@ -725,7 +725,7 @@ export function OrderPanel({
                 className={[
                   "h-10 rounded-xl border text-xs font-black transition",
                   splitMethod === method.value
-                    ? "border-accent bg-accent text-[#1b1206]"
+                    ? "border-accent bg-accent text-on-accent"
                     : "border-border bg-surface-2 text-muted hover:bg-[var(--surface-3)] hover:text-text",
                 ].join(" ")}
                 onClick={() => setSplitMethod(method.value)}

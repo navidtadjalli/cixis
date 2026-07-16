@@ -1,0 +1,73 @@
+# مَجاز (Majaz) brand build. Same app as CiXiS (electron-builder.yml), only the
+# identity differs: appId, product name, icon, and the auto-update feed.
+#
+# Built by: npm run electron:build:majaz  (sets BRAND=majaz so the UI theme +
+# logo glyph are regenerated before vite build). CI: windows-build-majaz.yml on
+# a `m-v*` tag.
+appId: com.majaz.pos
+productName: مَجاز
+
+# Auto-update feed. Unlike CiXiS (GitHub Releases), Majaz publishes to an
+# Arvan S3-compatible bucket so the two products never share an update feed.
+# electron-builder uploads with the s3 provider (needs AWS_ACCESS_KEY_ID /
+# AWS_SECRET_ACCESS_KEY in the CI env); electron-updater in the installed app
+# reads the same feed. Keep the bucket/path public-read so clients can fetch
+# updates without credentials. All values come from CI env (see the workflow).
+publish:
+  - provider: s3
+    endpoint: ${env.ARVAN_S3_ENDPOINT}
+    region: ${env.ARVAN_S3_REGION}
+    bucket: ${env.ARVAN_S3_BUCKET}
+    path: majaz
+    acl: public-read
+
+directories:
+  output: release
+
+files:
+  - package.json
+  - dist/**/*
+  - electron/**/*
+
+extraResources:
+  - from: ../menu.json
+    to: menu.json
+  - from: ../tables.json
+    to: tables.json
+  - from: ../backend
+    to: backend
+    filter:
+      - "**/*"
+      - "!.venv/**/*"
+      - "!python-embed/**/*"
+      - "!**/__pycache__/**"
+      - "!**/*.py[cod]"
+      - "!**/db.sqlite3"
+      - "!**/*.sqlite3"
+      - "!**/*.sqlite3-*"
+      - "!**/backups/**"
+      - "!**/*.bak"
+      - "!**/*.backup"
+      - "!**/*.log"
+  - from: ../backend/python-embed
+    to: python
+    filter:
+      - "**/*"
+
+win:
+  target: nsis
+  icon: build/icon.majaz.ico
+
+linux:
+  target: AppImage
+  category: Office
+  icon: build/icon.majaz.png
+
+nsis:
+  oneClick: true
+  perMachine: false
+  createStartMenuShortcut: true
+  createDesktopShortcut: true
+  allowToChangeInstallationDirectory: false
+  shortcutName: مَجاز
+  include: build/installer.nsh
