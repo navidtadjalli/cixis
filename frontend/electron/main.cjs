@@ -250,23 +250,6 @@ ipcMain.on("win:toggle-maximize", () => {
 });
 ipcMain.on("win:close", () => mainWindow && mainWindow.close());
 
-// Check for a newer release and download+notify in the background.
-// No-op in dev and when no publish feed is configured.
-function initAutoUpdate() {
-  if (isDev) return;
-  let autoUpdater;
-  try {
-    ({ autoUpdater } = require("electron-updater"));
-  } catch (e) {
-    return; // electron-updater not installed
-  }
-  autoUpdater.autoDownload = true;
-  autoUpdater.on("error", (err) =>
-    console.error("auto-update error:", err && err.message),
-  );
-  autoUpdater.checkForUpdatesAndNotify().catch(() => {});
-}
-
 // A second launch (staff double-clicking the icon) would otherwise bring up a
 // whole second Electron *and* a second Django fighting over port 8000, doubling
 // the machine's memory for a window nobody asked for. Hand focus to the running
@@ -284,7 +267,6 @@ if (!app.requestSingleInstanceLock()) {
   app.whenReady().then(() => {
     startDjango();
     createWindow();
-    initAutoUpdate();
 
     app.on("activate", () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow();

@@ -1,5 +1,7 @@
 name: Build Windows EXE
 
+# Builds the installer only — nothing is published and the app does not
+# auto-update. Download the .exe from the run's artifacts and install it.
 on:
   push:
     tags:
@@ -7,7 +9,7 @@ on:
   workflow_dispatch: {}   # also allow manual runs from the Actions tab
 
 permissions:
-  contents: write   # needed to create/upload GitHub Releases for auto-update
+  contents: read
 
 jobs:
   build-windows:
@@ -35,10 +37,9 @@ jobs:
       - name: Build embedded Python backend bundle
         run: python backend\build_win_python.py
 
-      # v1.2.3 -> 1.2.3. Becomes the app version so the published latest.yml
-      # matches the tag — electron-updater compares against that file, so a stale
-      # version would hide the release from installed clients. Manual runs leave
-      # it empty (no version override, no --publish either).
+      # v1.2.3 -> 1.2.3. Becomes the app version, so the built installer is named
+      # "CiXiS Setup 1.2.3.exe". Manual runs leave it empty and fall back to the
+      # version committed in package.json.
       - name: Derive version from tag
         shell: pwsh
         run: |
@@ -60,16 +61,11 @@ jobs:
         working-directory: frontend
         run: npm pkg set version=${{ env.APP_VERSION }}
 
-      # On a version tag: build AND publish to GitHub Releases so electron-updater
-      # can find it (uploads the .exe plus the latest.yml feed). Manual/branch
-      # runs just build, no publish.
+      # Nothing is published: grab the .exe from this run's artifacts below and
+      # install it by hand.
       - name: Build Windows installer
         working-directory: frontend
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: >-
-          npm run electron:build --
-          ${{ startsWith(github.ref, 'refs/tags/v') && '--publish always' || '--publish never' }}
+        run: npm run electron:build
 
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4

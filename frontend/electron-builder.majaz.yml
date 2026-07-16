@@ -1,5 +1,5 @@
 # مَجاز (Majaz) brand build. Same app as CiXiS (electron-builder.yml), only the
-# identity differs: appId, product name, icon, and the auto-update feed.
+# identity differs: appId, product name, and icon.
 #
 # Built by: npm run electron:build:majaz  (sets BRAND=majaz so the UI theme +
 # logo glyph are regenerated before vite build). CI: windows-build-majaz.yml on
@@ -7,25 +7,8 @@
 appId: com.majaz.pos
 productName: مَجاز
 
-# Auto-update feed. Unlike CiXiS (GitHub Releases), Majaz publishes to an
-# Arvan S3-compatible bucket so the two products never share an update feed.
-# electron-builder uploads with the s3 provider (needs AWS_ACCESS_KEY_ID /
-# AWS_SECRET_ACCESS_KEY in the CI env); electron-updater in the installed app
-# reads the same feed. Keep the bucket/path public-read so clients can fetch
-# updates without credentials. All values come from CI env (see the workflow).
-#
-# The env names below must stay digit-free. electron-builder expands ${env.X}
-# with the regex /\${([_a-zA-Z./*+]+)}/ — no digits in the character class — so
-# a name like ARVAN_S3_ENDPOINT silently fails to match and reaches the uploader
-# verbatim ("invalid character '{' in host name"). The workflow maps the
-# ARVAN_S3_* secrets onto these names.
-publish:
-  - provider: s3
-    endpoint: ${env.ARVAN_ENDPOINT}
-    region: ${env.ARVAN_REGION}
-    bucket: ${env.ARVAN_BUCKET}
-    path: majaz
-    acl: public-read
+# No auto-update — see the same note in electron-builder.yml.
+publish: null
 
 directories:
   output: release
