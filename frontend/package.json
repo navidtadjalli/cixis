@@ -18,8 +18,7 @@
     "electron:dev": "concurrently -k \"vite\" \"wait-on tcp:5173 && cross-env ELECTRON_RUN_AS_NODE= ELECTRON_DEV=1 electron .\"",
     "preelectron:build": "npm run gen:brand",
     "electron:build": "tsc -b && vite build && electron-builder --config electron-builder.yml",
-    "build:majaz:steps": "npm run gen:brand && tsc -b && vite build && electron-builder --config electron-builder.majaz.yml",
-    "electron:build:majaz": "cross-env BRAND=majaz npm run build:majaz:steps"
+    "electron:build:majaz": "cross-env BRAND=majaz node scripts/gen-brand.mjs && tsc -b && cross-env BRAND=majaz vite build && electron-builder --config electron-builder.majaz.yml"
   },
   "dependencies": {
     "@fontsource/vazirmatn": "^5.0.18",
