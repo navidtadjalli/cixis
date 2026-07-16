@@ -35,6 +35,17 @@ jobs:
       - name: Build embedded Python backend bundle
         run: python backend\build_win_python.py
 
+      # v1.2.3 -> 1.2.3. Fed to electron-builder as the app version so the
+      # published latest.yml matches the tag — electron-updater compares against
+      # that file, so a stale package.json version would hide the release from
+      # installed clients. Manual runs leave it empty (no --publish either).
+      - name: Derive version from tag
+        shell: pwsh
+        run: |
+          $v = "${{ github.ref_name }}" -replace '^v',''
+          if ("${{ github.ref }}" -notlike 'refs/tags/v*') { $v = '' }
+          "APP_VERSION=$v" | Out-File -FilePath $env:GITHUB_ENV -Append
+
       - name: Install frontend deps
         working-directory: frontend
         run: npm ci
@@ -48,6 +59,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: >-
           npm run electron:build --
+          ${{ env.APP_VERSION != '' && format('-c.extraMetadata.version={0}', env.APP_VERSION) || '' }}
           ${{ startsWith(github.ref, 'refs/tags/v') && '--publish always' || '--publish never' }}
 
       - name: Upload installer artifact
