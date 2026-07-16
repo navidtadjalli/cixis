@@ -13,11 +13,17 @@ productName: مَجاز
 # AWS_SECRET_ACCESS_KEY in the CI env); electron-updater in the installed app
 # reads the same feed. Keep the bucket/path public-read so clients can fetch
 # updates without credentials. All values come from CI env (see the workflow).
+#
+# The env names below must stay digit-free. electron-builder expands ${env.X}
+# with the regex /\${([_a-zA-Z./*+]+)}/ — no digits in the character class — so
+# a name like ARVAN_S3_ENDPOINT silently fails to match and reaches the uploader
+# verbatim ("invalid character '{' in host name"). The workflow maps the
+# ARVAN_S3_* secrets onto these names.
 publish:
   - provider: s3
-    endpoint: ${env.ARVAN_S3_ENDPOINT}
-    region: ${env.ARVAN_S3_REGION}
-    bucket: ${env.ARVAN_S3_BUCKET}
+    endpoint: ${env.ARVAN_ENDPOINT}
+    region: ${env.ARVAN_REGION}
+    bucket: ${env.ARVAN_BUCKET}
     path: majaz
     acl: public-read
 
