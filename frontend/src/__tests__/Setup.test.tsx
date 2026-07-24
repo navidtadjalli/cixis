@@ -98,7 +98,7 @@ describe("SetupScreen", () => {
     ).toBeTruthy();
   });
 
-  it("loads the bundled menu and reports what was added", async () => {
+  it("loads the selected bundled menu and reports what was added", async () => {
     const user = userEvent.setup();
     const { onDataChanged } = renderSetup();
     await unlock(user);
@@ -107,15 +107,33 @@ describe("SetupScreen", () => {
       categories_created: 3,
       products_created: 9,
     });
-    await user.click(screen.getByRole("button", { name: "بارگذاری منو" }));
+    await user.click(
+      screen.getByRole("button", { name: "بارگذاری منوی چیخیش" }),
+    );
 
     await waitFor(() => {
       expect(mockedApiPost).toHaveBeenLastCalledWith("/setup/menu/load/", {
         password: "1234",
+        menu: "cixis",
       });
     });
     expect(await screen.findByText("۳ دسته‌بندی و ۹ محصول اضافه شد.")).toBeTruthy();
     expect(onDataChanged).toHaveBeenCalled();
+
+    // The Majaz button hits the same endpoint with the other bundle key.
+    mockedApiPost.mockResolvedValueOnce({
+      categories_created: 2,
+      products_created: 5,
+    });
+    await user.click(
+      screen.getByRole("button", { name: "بارگذاری منوی مَجاز" }),
+    );
+    await waitFor(() => {
+      expect(mockedApiPost).toHaveBeenLastCalledWith("/setup/menu/load/", {
+        password: "1234",
+        menu: "majaz",
+      });
+    });
   });
 
   it("wipes tables only after the confirmation is accepted", async () => {
@@ -182,7 +200,9 @@ describe("SetupScreen", () => {
     mockedApiPost.mockRejectedValueOnce(
       new ApiError(501, { detail: "فایل منو در این نسخه موجود نیست." }),
     );
-    await user.click(screen.getByRole("button", { name: "بارگذاری منو" }));
+    await user.click(
+      screen.getByRole("button", { name: "بارگذاری منوی چیخیش" }),
+    );
 
     expect(
       await screen.findByText("فایل منو در این نسخه موجود نیست."),

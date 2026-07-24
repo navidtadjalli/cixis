@@ -81,6 +81,23 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
+# --- ensure node/npm are on PATH -----------------------------------------
+# nvm puts no node on PATH when its `default` alias points at an uninstalled
+# version (e.g. `default -> lts/*` with no LTS installed), so a fresh shell can
+# reach here with npm missing. Resolve one the same way we do for python above.
+if ! command -v npm >/dev/null 2>&1; then
+  # Prepend the newest node version nvm has installed. A scan (not `nvm use`) so
+  # it works with `set -e` and needs no nvm shell function on PATH.
+  export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
+  node_bin="$(ls -d "$NVM_DIR"/versions/node/*/bin 2>/dev/null | sort -V | tail -1 || true)"
+  [ -n "$node_bin" ] && export PATH="$node_bin:$PATH"
+fi
+if ! command -v npm >/dev/null 2>&1; then
+  echo "[run] npm not found. Install Node (e.g. 'nvm install --lts') and retry." >&2
+  exit 1
+fi
+echo "[node] using $(command -v npm) (node $(node --version 2>/dev/null))"
+
 # --- frontend deps + Electron --------------------------------------------
 if [ ! -d "$ROOT/frontend/node_modules" ]; then
   echo "[frontend] npm install..."

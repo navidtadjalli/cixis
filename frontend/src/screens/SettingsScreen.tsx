@@ -10,11 +10,17 @@ type StorageSettings = {
   s3_region: string;
 };
 
-type SettingsState = {
+export type SettingsState = {
   settings: StorageSettings;
   configured: boolean;
   website_url: string;
   sync_enabled: boolean;
+};
+
+type SettingsScreenProps = {
+  // When rendered inside the owner tab, the GOD code is already validated there:
+  // the local unlock gate is skipped and the initial state is passed straight in.
+  embedded?: { godCode: string; state: SettingsState };
 };
 
 const FIELDS: {
@@ -52,10 +58,12 @@ function detailFromError(error: unknown, fallback: string) {
   return fallback;
 }
 
-export function SettingsScreen() {
-  const [godCode, setGodCode] = useState("");
-  const [state, setState] = useState<SettingsState | null>(null);
-  const [form, setForm] = useState<StorageSettings>(EMPTY);
+export function SettingsScreen({ embedded }: SettingsScreenProps = {}) {
+  const [godCode, setGodCode] = useState(embedded?.godCode ?? "");
+  const [state, setState] = useState<SettingsState | null>(embedded?.state ?? null);
+  const [form, setForm] = useState<StorageSettings>(
+    embedded?.state.settings ?? EMPTY,
+  );
   // The unlock response masks credentials. Sending a mask back would overwrite the
   // real value with dots, so a credential only leaves the form if it was retyped.
   const [touched, setTouched] = useState<Set<keyof StorageSettings>>(new Set());
@@ -188,18 +196,20 @@ export function SettingsScreen() {
           <Button type="submit" disabled={busy}>
             {busy ? "در حال ذخیره..." : "ذخیره"}
           </Button>
-          <Button
-            variant="ghost"
-            onClick={() => {
-              setState(null);
-              setGodCode("");
-              setForm(EMPTY);
-              setError(null);
-              setSaved(false);
-            }}
-          >
-            بستن
-          </Button>
+          {!embedded && (
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setState(null);
+                setGodCode("");
+                setForm(EMPTY);
+                setError(null);
+                setSaved(false);
+              }}
+            >
+              بستن
+            </Button>
+          )}
         </div>
       </form>
     </div>

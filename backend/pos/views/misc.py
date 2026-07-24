@@ -17,6 +17,11 @@ from ..sync import retry_pending, sync_enabled
 DEFAULT_REVENUE_PASSWORD = "1234"
 REVENUE_TOKEN_TTL_SECONDS = 60
 
+# Default manager password (staff report tier). The manager is prompted to
+# change it on first unlock; ``manager_password_changed`` tracks whether they
+# have. Stored hashed.
+DEFAULT_MANAGER_PASSWORD = "0000"
+
 # Master "god code" override. Accepted in place of the revenue password so a
 # forgotten password is never a hard lockout: it unlocks بستن روز and can be
 # used as the current password to set a new one. It also gates the publish
@@ -38,10 +43,41 @@ def _revenue_setting():
     )[0]
 
 
-def check_revenue_password(supplied: str) -> bool:
-    """True if ``supplied`` is the revenue password or the god code override."""
+def _manager_setting():
+    """Fetch the manager_password setting, seeding a hashed default if missing."""
+    return AppSetting.objects.get_or_create(
+        key="manager_password",
+        defaults={"value": make_password(DEFAULT_MANAGER_PASSWORD)},
+    )[0]
+
+
+def _manager_changed_setting():
+    """Flag AppSetting: '1' once the manager has changed the default password."""
+    return AppSetting.objects.get_or_create(
+        key="manager_password_changed", defaults={"value": "0"}
+    )[0]
+
+
+def check_manager_password(supplied: str) -> bool:
+    """True if ``supplied`` is the manager password or the god code override.
+
+    Gates the manager-only staff report (Tab A).
+    """
     return check_password(supplied, GOD_CODE_HASH) or check_password(
-        supplied, _revenue_setting().value
+        supplied, _manager_setting().value
+    )
+
+
+def check_revenue_password(supplied: str) -> bool:
+    """True if ``supplied`` unlocks بستن روز / the attendance-entry tab.
+
+    Accepts the revenue password, the manager password, or the god code — the
+    manager's code works everywhere the supervisor's does, plus the report.
+    """
+    return (
+        check_password(supplied, GOD_CODE_HASH)
+        or check_password(supplied, _revenue_setting().value)
+        or check_password(supplied, _manager_setting().value)
     )
 
 
@@ -172,4 +208,53 @@ def revenue_change_password(request):
         )
     setting.value = make_password(new)
     setting.save(update_fields=["value"])
+    return Response({"detail": "رمز عبور تغییر کرد."})
+
+
+@api_view(["POST"])
+def manager_unlock(request):
+    """Validate the manager (or god) code and return a short-lived reveal token.
+
+    ``must_change`` is true while the manager still uses the default password, so
+    the report screen can force a change on first entry.
+    """
+    if not check_manager_password(str(request.data.get("password", ""))):
+        return Response(
+            {"detail": "رمز عبور نادرست است."}, status=status.HTTP_401_UNAUTHORIZED
+        )
+    expires_at = timezone.now() + timedelta(seconds=REVENUE_TOKEN_TTL_SECONDS)
+    must_change = _manager_changed_setting().value != "1"
+    return Response(
+        {
+            "token": str(uuid.uuid4()),
+            "expires_at": expires_at.isoformat(),
+            "must_change": must_change,
+        }
+    )
+
+
+@api_view(["POST"])
+def manager_change_password(request):
+    """Verify the current manager password and set a new one.
+
+    The god code is accepted as the current password so a forgotten manager
+    password is never a lockout. Clears the must-change flag.
+    """
+    setting = _manager_setting()
+    new = str(request.data.get("new_password", ""))
+    if not check_manager_password(str(request.data.get("current_password", ""))):
+        return Response(
+            {"detail": "رمز عبور فعلی نادرست است."},
+            status=status.HTTP_401_UNAUTHORIZED,
+        )
+    if len(new) < 4:
+        return Response(
+            {"detail": "رمز عبور جدید باید حداقل ۴ نویسه باشد."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    setting.value = make_password(new)
+    setting.save(update_fields=["value"])
+    changed = _manager_changed_setting()
+    changed.value = "1"
+    changed.save(update_fields=["value"])
     return Response({"detail": "رمز عبور تغییر کرد."})

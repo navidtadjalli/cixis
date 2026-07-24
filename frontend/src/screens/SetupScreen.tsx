@@ -31,6 +31,10 @@ type SetupScreenProps = {
   // Tables and categories live in App; a wipe or a bulk create must be
   // reflected there or the sidebar keeps offering rows that no longer exist.
   onDataChanged: () => void;
+  // When embedded in the owner tab, the GOD code (already entered there) is
+  // passed in: the internal gate and page header are skipped and this password
+  // is sent to the destructive routes, which accept the god code.
+  embeddedPassword?: string;
 };
 
 function detail(error: unknown, fallback: string) {
@@ -67,13 +71,18 @@ function Card({
   );
 }
 
-export function SetupScreen({ onDataChanged }: SetupScreenProps) {
+export function SetupScreen({ onDataChanged, embeddedPassword }: SetupScreenProps) {
+  const embedded = embeddedPassword !== undefined;
   // Held after unlock: the destructive routes each re-check it server-side, so
   // the gate below is a convenience, not the security boundary.
-  const [password, setPassword] = useState("");
-  const [unlocked, setUnlocked] = useState(false);
+  const [internalPassword, setPassword] = useState("");
+  const [internalUnlocked, setUnlocked] = useState(false);
   const [gateError, setGateError] = useState<string | null>(null);
   const [gateBusy, setGateBusy] = useState(false);
+
+  // Embedded in the owner tab: reuse the god code and skip the local gate.
+  const password = embedded ? embeddedPassword : internalPassword;
+  const unlocked = embedded || internalUnlocked;
 
   const [tableCount, setTableCount] = useState("");
   const [prefix, setPrefix] = useState("");
@@ -186,12 +195,14 @@ export function SetupScreen({ onDataChanged }: SetupScreenProps) {
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-6">
-      <div>
-        <h2 className="text-3xl font-black text-text">راه‌اندازی</h2>
-        <p className="mt-2 text-base text-muted">
-          ساخت گروهی میز و کد، و پاک کردن اطلاعات برای شروع از نو.
-        </p>
-      </div>
+      {!embedded && (
+        <div>
+          <h2 className="text-3xl font-black text-text">راه‌اندازی</h2>
+          <p className="mt-2 text-base text-muted">
+            ساخت گروهی میز و کد، و پاک کردن اطلاعات برای شروع از نو.
+          </p>
+        </div>
+      )}
 
       {error && (
         <div className="rounded-xl border border-bad/30 bg-[#2a1518] px-4 py-3 text-base font-semibold text-bad">
@@ -296,26 +307,50 @@ export function SetupScreen({ onDataChanged }: SetupScreenProps) {
       </Card>
 
       <Card
-        title="بارگذاری منوی مَجاز"
-        hint="دسته‌بندی‌ها و محصولات منوی مَجاز اضافه می‌شوند. مواردی که از قبل هست دوباره ساخته نمی‌شود و قیمت‌های ویرایش‌شده دست‌نخورده می‌مانند."
+        title="بارگذاری منو"
+        hint="دسته‌بندی‌ها و محصولات منوی انتخاب‌شده اضافه می‌شوند. مواردی که از قبل هست دوباره ساخته نمی‌شود و قیمت‌های ویرایش‌شده دست‌نخورده می‌مانند."
       >
-        <Button
-          className="min-h-12 px-6"
-          disabled={busy !== null}
-          onClick={() =>
-            void run<LoadMenuResult>(
-              "load-menu",
-              "/setup/menu/load/",
-              {},
-              (result) =>
-                `${faNum(result.categories_created)} دسته‌بندی و ${faNum(
-                  result.products_created,
-                )} محصول اضافه شد.`,
-            )
-          }
-        >
-          {busy === "load-menu" ? "در حال بارگذاری..." : "بارگذاری منو"}
-        </Button>
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <Button
+            className="min-h-12 px-6"
+            disabled={busy !== null}
+            onClick={() =>
+              void run<LoadMenuResult>(
+                "load-menu-cixis",
+                "/setup/menu/load/",
+                { menu: "cixis" },
+                (result) =>
+                  `${faNum(result.categories_created)} دسته‌بندی و ${faNum(
+                    result.products_created,
+                  )} محصول اضافه شد.`,
+              )
+            }
+          >
+            {busy === "load-menu-cixis"
+              ? "در حال بارگذاری..."
+              : "بارگذاری منوی چیخیش"}
+          </Button>
+          <Button
+            variant="ghost"
+            className="min-h-12 px-6"
+            disabled={busy !== null}
+            onClick={() =>
+              void run<LoadMenuResult>(
+                "load-menu-majaz",
+                "/setup/menu/load/",
+                { menu: "majaz" },
+                (result) =>
+                  `${faNum(result.categories_created)} دسته‌بندی و ${faNum(
+                    result.products_created,
+                  )} محصول اضافه شد.`,
+              )
+            }
+          >
+            {busy === "load-menu-majaz"
+              ? "در حال بارگذاری..."
+              : "بارگذاری منوی مَجاز"}
+          </Button>
+        </div>
       </Card>
 
       <Card

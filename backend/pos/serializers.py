@@ -1,14 +1,20 @@
 """DRF serializers for the POS API."""
+from decimal import Decimal
+
 from rest_framework import serializers
 
-from . import services
+from . import services, staff_shift
 from .models import (
     Category,
+    Employee,
+    GuestCode,
     Order,
     OrderItem,
     Payment,
     Product,
     ResourcePurchase,
+    ShiftAttendance,
+    StaffConsumption,
     Table,
 )
 
@@ -102,7 +108,7 @@ class OrderSerializer(serializers.ModelSerializer):
 class CategorySerializer(serializers.ModelSerializer):
     class Meta:
         model = Category
-        fields = ["id", "name", "sort_order", "is_active"]
+        fields = ["id", "name", "sort_order", "is_active", "staff_free_monthly_quota"]
         read_only_fields = ["id", "is_active"]
 
 
@@ -119,6 +125,7 @@ class ProductSerializer(serializers.ModelSerializer):
             "is_publishable",
             "is_active",
             "sort_order",
+            "staff_free_monthly_quota",
         ]
         read_only_fields = ["id", "is_active"]
 
@@ -164,3 +171,129 @@ class TableSerializer(serializers.ModelSerializer):
 
     def get_status(self, obj):
         return services.table_status(self._active(obj))
+
+
+class EmployeeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Employee
+        fields = ["id", "name", "sort_order", "is_active"]
+        read_only_fields = ["id", "is_active"]
+
+
+class ShiftAttendanceSerializer(serializers.ModelSerializer):
+    employee_name = serializers.CharField(source="employee.name", read_only=True)
+    # Derived from the shift bounds so the entry screen can echo the tally back
+    # without re-implementing the math; the monthly report recomputes the same.
+    late_minutes = serializers.SerializerMethodField()
+    early_minutes = serializers.SerializerMethodField()
+    overtime_minutes = serializers.SerializerMethodField()
+    shift_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ShiftAttendance
+        fields = [
+            "id",
+            "employee",
+            "employee_name",
+            "business_date",
+            "shift",
+            "check_in",
+            "check_out",
+            "is_full_day",
+            "late_minutes",
+            "early_minutes",
+            "overtime_minutes",
+            "shift_count",
+        ]
+        read_only_fields = ["id"]
+        # The view upserts on (employee, business_date, shift) via
+        # update_or_create, so drop the auto unique-together validator that would
+        # otherwise 400 a re-save of an existing row.
+        validators = []
+
+    def _metrics(self, obj):
+        return staff_shift.compute(
+            obj.shift, obj.is_full_day, obj.check_in, obj.check_out
+        )
+
+    def get_late_minutes(self, obj):
+        return self._metrics(obj)["late_minutes"]
+
+    def get_early_minutes(self, obj):
+        return self._metrics(obj)["early_minutes"]
+
+    def get_overtime_minutes(self, obj):
+        return self._metrics(obj)["overtime_minutes"]
+
+    def get_shift_count(self, obj):
+        return self._metrics(obj)["shift_count"]
+
+
+class StaffConsumptionSerializer(serializers.ModelSerializer):
+    employee_name = serializers.CharField(source="employee.name", read_only=True)
+    quantity = serializers.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        min_value=Decimal("0.01"),
+        coerce_to_string=False,
+        required=False,
+        default=Decimal("1"),
+    )
+    line_total = serializers.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+        coerce_to_string=False,
+        read_only=True,
+    )
+
+    class Meta:
+        model = StaffConsumption
+        fields = [
+            "id",
+            "employee",
+            "employee_name",
+            "business_date",
+            "shift",
+            "product",
+            "product_name_snapshot",
+            "unit_price_snapshot",
+            "quantity",
+            "line_total",
+            "created_at",
+        ]
+        read_only_fields = [
+            "id",
+            "product_name_snapshot",
+            "unit_price_snapshot",
+            "line_total",
+            "created_at",
+        ]
+        # Defaulted to today's business date in create when omitted.
+        extra_kwargs = {"business_date": {"required": False}}
+
+    def create(self, validated_data):
+        """Snapshot the product name/price and compute the line total on write."""
+        product = validated_data["product"]
+        quantity = validated_data.get("quantity", Decimal("1"))
+        validated_data["product_name_snapshot"] = product.name
+        validated_data["unit_price_snapshot"] = product.price
+        validated_data["line_total"] = Decimal(product.price) * quantity
+        if not validated_data.get("business_date"):
+            validated_data["business_date"] = services.business_today()
+        return super().create(validated_data)
+
+
+class GuestCodeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = GuestCode
+        fields = [
+            "id",
+            "code",
+            "guest_name",
+            "guest_count",
+            "men_count",
+            "women_count",
+            "paid_entry",
+            "sort_order",
+        ]
+        read_only_fields = ["id"]

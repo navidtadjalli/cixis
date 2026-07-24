@@ -33,6 +33,10 @@ class Category(TimeStamped):
     name = models.CharField(max_length=120)
     sort_order = models.IntegerField(default=0)
     is_active = models.BooleanField(default=True)
+    # Staff free-meal allowance (CiXiS shift tracker): if > 0, products in this
+    # category are free for staff up to this many units per Jalali month. The
+    # designated "coffee" category is set to 10. 0 = not part of the allowance.
+    staff_free_monthly_quota = models.IntegerField(default=0)
 
     class Meta:
         ordering = ["sort_order", "id"]
@@ -57,6 +61,10 @@ class Product(TimeStamped):
     # sold in-house via the POS but omitted from the public menu entirely.
     is_publishable = models.BooleanField(default=True)
     sort_order = models.IntegerField(default=0)
+    # Staff free-meal allowance for this specific product, independent of its
+    # category (the peanut-butter shake is set to 1). A product-level quota takes
+    # precedence over its category's so a unit is never counted twice.
+    staff_free_monthly_quota = models.IntegerField(default=0)
 
     class Meta:
         ordering = ["sort_order", "id"]
@@ -313,3 +321,112 @@ class AppSetting(TimeStamped):
 
     def __str__(self):
         return f"{self.key}={self.value}"
+
+
+# --- CiXiS shift tracker (Story 1) ---------------------------------------
+# Staff attendance + a per-person menu tab. Brand-gated to CiXiS in the UI; the
+# tables exist for both brands. All money is in thousand-Tomans like the rest of
+# the POS. Months are grouped by Jalali month on the frontend, which passes a
+# Gregorian from/to range; the backend only stores/queries Gregorian dates.
+
+
+class Employee(TimeStamped):
+    """A staff member the shift supervisor logs attendance and consumption for.
+
+    Managed by the manager (add/remove). ``is_active`` is a soft delete so past
+    attendance/consumption rows keep a readable name.
+    """
+
+    name = models.CharField(max_length=160)
+    sort_order = models.IntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["sort_order", "id"]
+
+    def __str__(self):
+        return self.name
+
+
+class ShiftAttendance(TimeStamped):
+    """One person's come/go for one shift on one business date.
+
+    ``check_in``/``check_out`` are wall-clock times; a check-out at or before the
+    check-in is read as the following day (handles e.g. 14:00→02:00). A
+    ``is_full_day`` row spans the morning start to the evening end and counts as
+    two shifts in the monthly report.
+    """
+
+    class Shift(models.TextChoices):
+        MORNING = "morning", "۹ تا ۱۷"
+        EVENING = "evening", "۱۶ تا ۲۴"
+
+    employee = models.ForeignKey(
+        Employee, on_delete=models.CASCADE, related_name="attendances"
+    )
+    business_date = models.DateField()
+    shift = models.CharField(max_length=16, choices=Shift.choices)
+    check_in = models.TimeField()
+    check_out = models.TimeField()
+    is_full_day = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ["-business_date", "shift", "id"]
+        # One row per person per shift per day, so re-saving upserts.
+        unique_together = ("employee", "business_date", "shift")
+
+    def __str__(self):
+        return f"{self.employee_id} {self.business_date} {self.shift}"
+
+
+class StaffConsumption(TimeStamped):
+    """A menu item put on a staff member's bill. Never counts as café sales."""
+
+    employee = models.ForeignKey(
+        Employee, on_delete=models.CASCADE, related_name="consumptions"
+    )
+    business_date = models.DateField()
+    shift = models.CharField(
+        max_length=16,
+        choices=ShiftAttendance.Shift.choices,
+        default=ShiftAttendance.Shift.MORNING,
+    )
+    product = models.ForeignKey(
+        Product, null=True, blank=True, on_delete=models.SET_NULL
+    )
+    product_name_snapshot = models.CharField(max_length=160)
+    unit_price_snapshot = models.IntegerField(default=0)
+    quantity = models.DecimalField(max_digits=10, decimal_places=2, default=1)
+    line_total = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+
+    class Meta:
+        ordering = ["-business_date", "-id"]
+
+    def __str__(self):
+        return f"{self.product_name_snapshot} x{self.quantity}"
+
+
+# --- Majaz guest codes (Story 2) -----------------------------------------
+
+
+class GuestCode(TimeStamped):
+    """A door/invite code with the guest party recorded against it.
+
+    Bulk-generated from a prefix + inclusive numeric range, then filled in per
+    row: who is invited, how many they bring, the men/women split, and whether
+    the entry fee was paid. Standalone — unrelated to the ordering/event system.
+    """
+
+    code = models.CharField(max_length=80, unique=True)
+    guest_name = models.CharField(max_length=160, blank=True, default="")
+    guest_count = models.IntegerField(default=0)
+    men_count = models.IntegerField(default=0)
+    women_count = models.IntegerField(default=0)
+    paid_entry = models.BooleanField(default=False)
+    sort_order = models.IntegerField(default=0)
+
+    class Meta:
+        ordering = ["sort_order", "id"]
+
+    def __str__(self):
+        return self.code

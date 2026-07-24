@@ -23,8 +23,9 @@ from .misc import check_revenue_password
 # finger in the range fields cannot spawn a million rows.
 MAX_BULK = 500
 
-# Bundled menu the load button seeds. Shipped as an electron-builder
-# extraResource next to the backend dir; see menu_seed.menu_path.
+# Default bundled menu the load button seeds (Majaz). CiXiS ships menu.json;
+# both are electron-builder extraResources next to the backend dir, resolved via
+# menu_seed.menu_path. The load endpoint picks between them by the "menu" field.
 MENU_FILE = "menu.majaz.json"
 
 FA_DIGITS = "۰۱۲۳۴۵۶۷۸۹"
@@ -118,11 +119,18 @@ def wipe_menu(request):
 
 @api_view(["POST"])
 def load_menu(request):
-    """Seed the bundled Majaz menu, adding only what is missing."""
+    """Seed a bundled menu — CiXiS (menu.json) or Majaz — adding only what's missing.
+
+    The ``menu`` field selects the bundle: "cixis" or "majaz" (the default).
+    Whitelisted by key so a request can never point the loader at an arbitrary
+    path.
+    """
     if not _authorized(request):
         return _denied()
 
-    path = menu_seed.menu_path(MENU_FILE)
+    key = str(request.data.get("menu", "majaz")).strip().lower()
+    filename = {"cixis": "menu.json", "majaz": MENU_FILE}.get(key, MENU_FILE)
+    path = menu_seed.menu_path(filename)
     if not path.exists():
         return Response(
             {"detail": "فایل منو در این نسخه موجود نیست."},

@@ -7,16 +7,39 @@ export type Screen =
   | "tables-admin"
   | "menu"
   | "closing"
-  | "setup"
-  | "settings";
+  | "attendance-entry"
+  | "attendance-report"
+  | "guest-codes"
+  | "owner";
 
-export const navItems: { id: Screen; label: string }[] = [
+const baseNav: { id: Screen; label: string }[] = [
   { id: "tables", label: "سفارش گیری" },
   { id: "tables-admin", label: "مدیریت میزها" },
   { id: "menu", label: "منو و محصولات" },
   { id: "closing", label: "بستن روز" },
-  { id: "setup", label: "راه‌اندازی" },
-  { id: "settings", label: "تنظیمات انتشار" },
+];
+
+// CiXiS runs the staff shift tracker; Majaz runs the guest-code door list. The
+// owner tab (Setup + publish settings, GOD-gated) exists for both. Brand is a
+// build-time constant, so the nav is filtered once at module load.
+const cixisNav: { id: Screen; label: string }[] = [
+  { id: "attendance-entry", label: "ثبت حضور و مصرف" },
+  { id: "attendance-report", label: "گزارش ماهانه پرسنل" },
+];
+
+const majazNav: { id: Screen; label: string }[] = [
+  { id: "guest-codes", label: "کدهای مهمان" },
+];
+
+// brand.id is a build-time literal; alias to string so a cross-brand build
+// typechecks both comparisons instead of flagging one as a tautology.
+const brandId: string = brand.id;
+
+export const navItems: { id: Screen; label: string }[] = [
+  ...baseNav,
+  ...(brandId === "cixis" ? cixisNav : []),
+  ...(brandId === "majaz" ? majazNav : []),
+  { id: "owner", label: "تنظیمات برنامه" },
 ];
 
 type SidebarProps = {

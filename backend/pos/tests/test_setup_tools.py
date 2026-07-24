@@ -242,7 +242,37 @@ class SetupToolsTests(TestCase):
         with patch("pos.views.setup.MENU_FILE", "menu.does-not-exist.json"):
             res = self.post("setup-load-menu")
         self.assertEqual(res.status_code, 501)
-        self.assertEqual(Product.objects.count(), 0)
+
+    def cixis_menu(self):
+        with open(menu_seed.menu_path("menu.json"), encoding="utf-8") as fh:
+            return json.load(fh)
+
+    def test_load_menu_cixis_seeds_the_cixis_bundle(self):
+        data = self.cixis_menu()
+        expected_products = sum(len(c["items"]) for c in data["categories"])
+
+        res = self.post("setup-load-menu", {"menu": "cixis"})
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(
+            res.json(),
+            {
+                "categories_created": len(data["categories"]),
+                "products_created": expected_products,
+            },
+        )
+        self.assertEqual(Category.objects.count(), len(data["categories"]))
+        self.assertEqual(Product.objects.count(), expected_products)
+
+    def test_load_menu_defaults_to_majaz_for_an_unknown_selection(self):
+        # An unrecognized key falls back to the Majaz default rather than erroring.
+        data = self.bundled_menu()
+        res = self.post("setup-load-menu", {"menu": "bogus"})
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(Category.objects.count(), len(data["categories"]))
+        self.assertEqual(
+            Product.objects.count(),
+            sum(len(c["items"]) for c in data["categories"]),
+        )
 
     # --- bulk tables --------------------------------------------------------
 

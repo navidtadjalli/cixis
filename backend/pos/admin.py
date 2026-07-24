@@ -17,5 +17,9 @@ for _model in (
     models.MenuPublishRecord,
     models.SyncRecord,
     models.AppSetting,
+    models.Employee,
+    models.ShiftAttendance,
+    models.StaffConsumption,
+    models.GuestCode,
 ):
     admin.site.register(_model)

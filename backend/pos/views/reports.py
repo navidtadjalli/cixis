@@ -1,13 +1,22 @@
 """Reports: monthly DayClosing rollup and an ad-hoc date-range order report."""
+from collections import defaultdict
 from datetime import date
+from decimal import Decimal
 
 from django.db.models import Sum
 from rest_framework.decorators import api_view
 from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 
-from .. import closing, services
-from ..models import DayClosing, Order, OrderItem
+from .. import closing, services, staff_shift
+from ..models import (
+    DayClosing,
+    Employee,
+    Order,
+    OrderItem,
+    ShiftAttendance,
+    StaffConsumption,
+)
 
 # Keys summed across daily rows to build the month totals.
 _MONTH_TOTAL_KEYS = (
@@ -117,6 +126,161 @@ def _parse_date(value, field):
         return date.fromisoformat(value)
     except (TypeError, ValueError):
         raise ValidationError({field: "تاریخ نامعتبر است (YYYY-MM-DD)."})
+
+
+def _free_allowance(consumptions) -> dict:
+    """Value staff eat for free within their monthly quota, over ``consumptions``.
+
+    ``consumptions`` must be ordered chronologically. Each quantity is charged
+    to a product-level pool first (the tagged peanut-butter shake), else its
+    category pool (the coffee category). Fractional quantities consume the same
+    fraction of quota and price. Returns the free value plus how many units fell
+    under the category (coffee) vs product (shake) pools, for display.
+    """
+    product_units: dict[int, list[tuple[Decimal, Decimal]]] = defaultdict(list)
+    category_units: dict[int, list[tuple[Decimal, Decimal]]] = defaultdict(list)
+    product_quota: dict[int, int] = {}
+    category_quota: dict[int, int] = {}
+
+    for c in consumptions:
+        product = c.product
+        if product is None:
+            continue
+        quantity = max(Decimal("0"), c.quantity)
+        price = Decimal(c.unit_price_snapshot)
+        if product.staff_free_monthly_quota > 0:
+            product_units[product.id].append((quantity, price))
+            product_quota[product.id] = product.staff_free_monthly_quota
+        elif product.category and product.category.staff_free_monthly_quota > 0:
+            category_units[product.category_id].append((quantity, price))
+            category_quota[product.category_id] = (
+                product.category.staff_free_monthly_quota
+            )
+
+    def consume(entries, quota):
+        remaining = Decimal(quota)
+        value = Decimal("0")
+        units = Decimal("0")
+        for quantity, price in entries:
+            if remaining <= 0:
+                break
+            take = min(quantity, remaining)
+            value += price * take
+            units += take
+            remaining -= take
+        return value, units
+
+    free_value = Decimal("0")
+    shake_units = Decimal("0")
+    for pid, entries in product_units.items():
+        value, units = consume(entries, product_quota[pid])
+        free_value += value
+        shake_units += units
+
+    coffee_units = Decimal("0")
+    for cid, entries in category_units.items():
+        value, units = consume(entries, category_quota[cid])
+        free_value += value
+        coffee_units += units
+
+    return {
+        "free_value": free_value,
+        "free_coffee_units": coffee_units,
+        "free_shake_units": shake_units,
+    }
+
+
+@api_view(["GET"])
+def staff_monthly(request):
+    """Per-employee shift + tab report for ?from=&to= (inclusive Gregorian range).
+
+    The frontend maps the picked Jalali month to this range. Per person:
+    shifts worked (full day = 2), total late/early/overtime minutes, the gross
+    tab, the free-allowance deduction, and the net tab owed.
+    """
+    today = services.business_today()
+    from_date = _parse_date(
+        request.query_params.get("from", today.replace(day=1).isoformat()), "from"
+    )
+    to_date = _parse_date(request.query_params.get("to", today.isoformat()), "to")
+    if from_date > to_date:
+        raise ValidationError({"from": "تاریخ شروع بعد از تاریخ پایان است."})
+
+    attendances = ShiftAttendance.objects.filter(
+        business_date__gte=from_date, business_date__lte=to_date
+    )
+    consumptions = (
+        StaffConsumption.objects.filter(
+            business_date__gte=from_date, business_date__lte=to_date
+        )
+        .select_related("product", "product__category")
+        .order_by("business_date", "id")
+    )
+
+    # Rows for every active employee, plus removed staff that still have data in
+    # the range so a past month reads correctly.
+    names = dict(Employee.objects.values_list("id", "name"))
+    active_ids = set(
+        Employee.objects.filter(is_active=True).values_list("id", flat=True)
+    )
+    rows: dict[int, dict] = {}
+
+    def _row(employee_id: int) -> dict:
+        row = rows.get(employee_id)
+        if row is None:
+            row = rows[employee_id] = {
+                "employee_id": employee_id,
+                "employee_name": names.get(employee_id, "—"),
+                "shifts_count": 0,
+                "late_minutes": 0,
+                "early_minutes": 0,
+                "overtime_minutes": 0,
+                "gross_tab": Decimal("0"),
+                "free_value": Decimal("0"),
+                "free_coffee_units": Decimal("0"),
+                "free_shake_units": Decimal("0"),
+                "net_tab": Decimal("0"),
+                "_consumptions": [],
+            }
+        return row
+
+    for att in attendances:
+        row = _row(att.employee_id)
+        metrics = staff_shift.compute(
+            att.shift, att.is_full_day, att.check_in, att.check_out
+        )
+        row["shifts_count"] += metrics["shift_count"]
+        row["late_minutes"] += metrics["late_minutes"]
+        row["early_minutes"] += metrics["early_minutes"]
+        row["overtime_minutes"] += metrics["overtime_minutes"]
+
+    for con in consumptions:
+        row = _row(con.employee_id)
+        row["gross_tab"] += con.line_total
+        row["_consumptions"].append(con)
+
+    # Ensure active employees with no activity still appear (zeros).
+    for employee_id in active_ids:
+        _row(employee_id)
+
+    result = []
+    for row in rows.values():
+        free = _free_allowance(row.pop("_consumptions"))
+        row["free_value"] = free["free_value"]
+        row["free_coffee_units"] = free["free_coffee_units"]
+        row["free_shake_units"] = free["free_shake_units"]
+        row["net_tab"] = row["gross_tab"] - free["free_value"]
+        result.append(row)
+
+    result.sort(key=lambda r: (r["employee_id"] not in active_ids, r["employee_name"]))
+
+    return Response(
+        {
+            "from": from_date.isoformat(),
+            "to": to_date.isoformat(),
+            "employees": result,
+        }
+    )
 
 
 @api_view(["GET"])

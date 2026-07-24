@@ -5,8 +5,10 @@ import { EventScreen } from "./screens/EventScreen";
 import { DayClosingScreen } from "./screens/DayClosingScreen";
 import { MenuScreen } from "./screens/MenuScreen";
 import { OrderPanel, type Category, type Product } from "./screens/OrderPanel";
-import { SettingsScreen } from "./screens/SettingsScreen";
-import { SetupScreen } from "./screens/SetupScreen";
+import { OwnerScreen } from "./screens/OwnerScreen";
+import { AttendanceEntryScreen } from "./screens/AttendanceEntryScreen";
+import { StaffReportScreen } from "./screens/StaffReportScreen";
+import { GuestCodesScreen } from "./screens/GuestCodesScreen";
 import { TablesScreen, type Table } from "./screens/TablesScreen";
 import { TablesAdminScreen } from "./screens/TablesAdminScreen";
 import { apiGet } from "./lib/api";
@@ -224,10 +226,14 @@ export default function App() {
                 <MenuScreen />
               ) : screen === "closing" ? (
                 unlocked ? <DayClosingScreen /> : <DayClosingGate />
-              ) : screen === "setup" ? (
-                <SetupScreen onDataChanged={handleSetupDataChanged} />
-              ) : screen === "settings" ? (
-                <SettingsScreen />
+              ) : screen === "attendance-entry" ? (
+                <AttendanceEntryScreen />
+              ) : screen === "attendance-report" ? (
+                <StaffReportScreen />
+              ) : screen === "guest-codes" ? (
+                <GuestCodesScreen />
+              ) : screen === "owner" ? (
+                <OwnerScreen onDataChanged={handleSetupDataChanged} />
               ) : null}
             </section>
           </div>
