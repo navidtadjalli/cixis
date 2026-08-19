@@ -308,3 +308,70 @@ class DayClosingTests(TestCase):
             )
         self.assertEqual(response.status_code, 400)
         self.assertEqual(DayClosing.objects.count(), 0)
+
+    def test_preview_lists_settled_orders_with_items_and_payments(self):
+        """The supervisor reviews every settled ticket before closing.
+
+        Counts alone can't be audited: the preview carries each settled order's
+        priced lines and the payments that covered them.
+        """
+        order = self.create_paid_order(quantity=2)
+
+        response = self.client.get("/api/day-closing/preview/")
+
+        self.assertEqual(response.status_code, 200)
+        settled = response.data["settled_orders"]
+        self.assertEqual(len(settled), 1)
+        receipt = settled[0]
+        self.assertEqual(receipt["order_number"], order.order_number)
+        self.assertEqual(receipt["table_name"], "D1")
+        self.assertEqual(receipt["status"], Order.Status.PAID)
+        self.assertEqual(receipt["subtotal"], 200)
+        self.assertEqual(receipt["paid_amount"], 200)
+        self.assertEqual(receipt["remaining_amount"], 0)
+        self.assertEqual(
+            receipt["items"],
+            [
+                {
+                    "product_name": "Plate",
+                    "quantity": 2,
+                    "unit_price": 100,
+                    "line_total": 200,
+                }
+            ],
+        )
+        self.assertEqual(
+            receipt["payments"],
+            [{"amount": 200, "method": Payment.Method.CARD, "payer_label": None}],
+        )
+
+    def test_preview_settled_orders_exclude_open_and_untouched_presets(self):
+        """Only tickets actually settled belong in the review list.
+
+        An open order is already surfaced under unresolved_orders, and an
+        untouched preset code is a slot, not an order.
+        """
+        paid = self.create_paid_order(quantity=1)
+        open_order = Order.objects.create(
+            mode=Order.Mode.TABLE,
+            table=self.table,
+            status=Order.Status.OPEN,
+            business_date=self.today,
+        )
+        self.client.post(
+            f"/api/orders/{open_order.id}/items/",
+            {"product_id": self.product.id, "quantity": 1},
+            format="json",
+        )
+        Order.objects.create(
+            mode=Order.Mode.EVENT,
+            event_customer_label="Preset guest",
+            is_preset=True,
+            status=Order.Status.OPEN,
+            business_date=self.today,
+        )
+
+        response = self.client.get("/api/day-closing/preview/")
+
+        numbers = [o["order_number"] for o in response.data["settled_orders"]]
+        self.assertEqual(numbers, [paid.order_number])

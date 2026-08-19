@@ -107,6 +107,43 @@ def compute_day_summary(business_date: date | None) -> dict:
         for o in open_orders
     ]
 
+    # Every settled ticket, priced line by line, so a supervisor can audit what
+    # was rung up and what covered it before the close wipes them from the
+    # register. Prefetched because reports.monthly calls this once per unclosed
+    # date and would otherwise issue two queries per order.
+    settled = [
+        {
+            "id": o.id,
+            "order_number": o.order_number,
+            "table_name": o.table.name if o.table else o.event_customer_label,
+            "status": o.status,
+            "subtotal": o.subtotal,
+            "paid_amount": o.paid_amount,
+            "remaining_amount": o.remaining_amount,
+            "closed_at": o.closed_at,
+            "items": [
+                {
+                    "product_name": i.product_name_snapshot,
+                    "quantity": i.quantity,
+                    "unit_price": i.unit_price_snapshot,
+                    "line_total": i.line_total,
+                }
+                for i in o.items.all()
+            ],
+            "payments": [
+                {
+                    "amount": p.amount,
+                    "method": p.method,
+                    "payer_label": p.payer_label,
+                }
+                for p in o.payments.all()
+            ],
+        }
+        for o in closed_orders.select_related("table").prefetch_related(
+            "items", "payments"
+        )
+    ]
+
     return {
         "total_sales": cash + card + bank,
         "gross_sales": gross_sales,
@@ -123,6 +160,7 @@ def compute_day_summary(business_date: date | None) -> dict:
         "purchases_total": purchases_total,
         "resource_suggestions": suggestions,
         "unresolved_orders": unresolved,
+        "settled_orders": settled,
     }
 
 

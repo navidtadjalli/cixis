@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { RevenueProvider } from "../context/RevenueContext";
 import { apiGet, apiPost } from "../lib/api";
+import { money } from "../lib/format";
 import { DayClosingScreen } from "../screens/DayClosingScreen";
 
 vi.mock("../lib/api", () => ({
@@ -105,6 +106,99 @@ describe("DayClosingScreen", () => {
         confirm: true,
       });
     });
+  });
+
+  it("renders a full receipt for every settled order", async () => {
+    const previewWithSettled = {
+      ...previewWithOpenOrders,
+      settled_orders: [
+        {
+          id: 12,
+          order_number: 12,
+          table_name: "میز ۴",
+          status: "paid",
+          subtotal: 480,
+          paid_amount: 480,
+          remaining_amount: 0,
+          closed_at: "2026-06-18T20:15:00Z",
+          items: [
+            {
+              product_name: "اسپرسو",
+              quantity: 2,
+              unit_price: 90,
+              line_total: 180,
+            },
+            {
+              product_name: "کیک",
+              quantity: 1,
+              unit_price: 300,
+              line_total: 300,
+            },
+          ],
+          payments: [
+            { amount: 300, method: "cash", payer_label: null },
+            { amount: 180, method: "card", payer_label: "سارا" },
+          ],
+        },
+      ],
+    };
+
+    mockedApiGet.mockImplementation(async (path) => {
+      if (path === "/day-closing/preview/") {
+        return previewWithSettled;
+      }
+      if (path.startsWith("/resources/purchases/")) {
+        return [];
+      }
+      if (path.startsWith("/reports/range/")) {
+        return {
+          from: "2026-06-18",
+          to: "2026-06-18",
+          orders_count: 0,
+          orders_total: 0,
+          items: [],
+          items_quantity_total: 0,
+          items_amount_total: 0,
+        };
+      }
+      if (path.startsWith("/reports/monthly/")) {
+        return {
+          year: 2026,
+          month: 6,
+          total_sales: 0,
+          cash_total: 0,
+          card_total: 0,
+          bank_transfer_total: 0,
+          purchases_total: 0,
+          days_count: 0,
+          daily: [],
+        };
+      }
+      throw new Error(`Unexpected path: ${path}`);
+    });
+
+    render(
+      <RevenueProvider>
+        <DayClosingScreen />
+      </RevenueProvider>,
+    );
+
+    const receipt = (await screen.findByTestId("settled-order-12")) as HTMLElement;
+
+    // Every priced line is visible without any click.
+    expect(receipt).toHaveTextContent("اسپرسو");
+    expect(receipt).toHaveTextContent(`×${money(2)}`);
+    expect(receipt).toHaveTextContent(money(90));
+    expect(receipt).toHaveTextContent(money(180));
+    expect(receipt).toHaveTextContent("کیک");
+    expect(receipt).toHaveTextContent(money(300));
+
+    // What had to be paid, and what covered it.
+    expect(receipt).toHaveTextContent("پرداخت‌شده");
+    expect(receipt).toHaveTextContent(money(480));
+    expect(receipt).toHaveTextContent("نقدی");
+    expect(receipt).toHaveTextContent("کارت");
+    expect(receipt).toHaveTextContent("سارا");
   });
 
   it("refreshes the monthly table after closing so the closed row drops its button", async () => {
