@@ -9,7 +9,12 @@ describe("brand-gated navItems (cixis build)", () => {
   it("includes the shared tabs and the owner tab", () => {
     expect(ids).toContain("tables");
     expect(ids).toContain("closing");
+    expect(ids).toContain("orders-report");
     expect(ids).toContain("owner");
+  });
+
+  it("places the orders report immediately to the right of day closing", () => {
+    expect(ids.indexOf("orders-report")).toBe(ids.indexOf("closing") - 1);
   });
 
   it("includes the CiXiS attendance tabs", () => {

@@ -128,6 +128,39 @@ def _parse_date(value, field):
         raise ValidationError({field: "تاریخ نامعتبر است (YYYY-MM-DD)."})
 
 
+@api_view(["GET"])
+def paid_orders(request):
+    """Return paid tickets for one business day, optionally scoped to a table."""
+    today = services.business_today()
+    business_date = _parse_date(
+        request.query_params.get("business_date", today.isoformat()), "business_date"
+    )
+    raw_table_id = request.query_params.get("table_id")
+    table_id = None
+    if raw_table_id:
+        try:
+            table_id = int(raw_table_id)
+        except ValueError:
+            raise ValidationError({"table_id": "میز نامعتبر است."})
+
+    orders = Order.objects.filter(
+        business_date=business_date,
+        status=Order.Status.PAID,
+    )
+    if table_id is not None:
+        orders = orders.filter(table_id=table_id)
+
+    return Response(
+        {
+            "business_date": business_date.isoformat(),
+            "table_id": table_id,
+            "orders": closing.settled_order_receipts(
+                orders.order_by("-closed_at", "-id")
+            ),
+        }
+    )
+
+
 def _free_allowance(consumptions) -> dict:
     """Value staff eat for free within their monthly quota, over ``consumptions``.
 

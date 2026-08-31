@@ -3,7 +3,6 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { RevenueProvider } from "../context/RevenueContext";
 import { apiGet, apiPost } from "../lib/api";
-import { money } from "../lib/format";
 import { DayClosingScreen } from "../screens/DayClosingScreen";
 
 vi.mock("../lib/api", () => ({
@@ -108,7 +107,7 @@ describe("DayClosingScreen", () => {
     });
   });
 
-  it("renders a full receipt for every settled order", async () => {
+  it("keeps settled receipts out of the protected day-closing screen", async () => {
     const previewWithSettled = {
       ...previewWithOpenOrders,
       settled_orders: [
@@ -183,22 +182,9 @@ describe("DayClosingScreen", () => {
       </RevenueProvider>,
     );
 
-    const receipt = (await screen.findByTestId("settled-order-12")) as HTMLElement;
+    await screen.findByText("پیش‌نمایش بستن روز");
 
-    // Every priced line is visible without any click.
-    expect(receipt).toHaveTextContent("اسپرسو");
-    expect(receipt).toHaveTextContent(`×${money(2)}`);
-    expect(receipt).toHaveTextContent(money(90));
-    expect(receipt).toHaveTextContent(money(180));
-    expect(receipt).toHaveTextContent("کیک");
-    expect(receipt).toHaveTextContent(money(300));
-
-    // What had to be paid, and what covered it.
-    expect(receipt).toHaveTextContent("پرداخت‌شده");
-    expect(receipt).toHaveTextContent(money(480));
-    expect(receipt).toHaveTextContent("نقدی");
-    expect(receipt).toHaveTextContent("کارت");
-    expect(receipt).toHaveTextContent("سارا");
+    expect(screen.queryByTestId("settled-order-12")).not.toBeInTheDocument();
   });
 
   it("refreshes the monthly table after closing so the closed row drops its button", async () => {

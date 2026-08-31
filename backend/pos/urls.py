@@ -32,6 +32,7 @@ urlpatterns = [
     path("day-closing/close/", day_closing.close, name="day-closing-close"),
     path("reports/monthly/", reports.monthly, name="reports-monthly"),
     path("reports/range/", reports.date_range, name="reports-range"),
+    path("reports/orders/", reports.paid_orders, name="reports-orders"),
     path(
         "reports/staff-monthly/",
         reports.staff_monthly,

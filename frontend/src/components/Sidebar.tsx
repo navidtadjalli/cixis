@@ -6,6 +6,7 @@ export type Screen =
   | "tables"
   | "tables-admin"
   | "menu"
+  | "orders-report"
   | "closing"
   | "attendance-entry"
   | "attendance-report"
@@ -16,6 +17,7 @@ const baseNav: { id: Screen; label: string }[] = [
   { id: "tables", label: "سفارش گیری" },
   { id: "tables-admin", label: "مدیریت میزها" },
   { id: "menu", label: "منو و محصولات" },
+  { id: "orders-report", label: "گزارش سفارش‌ها" },
   { id: "closing", label: "بستن روز" },
 ];
 

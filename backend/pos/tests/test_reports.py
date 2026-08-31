@@ -58,6 +58,83 @@ class DateRangeReportTests(TestCase):
         self.assertEqual(response.data["items"][0]["quantity"], 3)
 
 
+class PaidOrdersReportTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.today = services.business_today()
+        self.first_table = Table.objects.create(name="T1", sort_order=1)
+        self.second_table = Table.objects.create(name="T2", sort_order=2)
+
+    def test_paid_orders_report_filters_by_day_and_table_in_descending_order(self):
+        earliest = Order.objects.create(
+            mode=Order.Mode.TABLE,
+            table=self.first_table,
+            status=Order.Status.PAID,
+            subtotal=100,
+            paid_amount=100,
+            business_date=self.today,
+        )
+        latest = Order.objects.create(
+            mode=Order.Mode.TABLE,
+            table=self.first_table,
+            status=Order.Status.PAID,
+            subtotal=200,
+            paid_amount=200,
+            business_date=self.today,
+        )
+        Order.objects.create(
+            mode=Order.Mode.TABLE,
+            table=self.second_table,
+            status=Order.Status.PAID,
+            subtotal=300,
+            paid_amount=300,
+            business_date=self.today,
+        )
+        Order.objects.create(
+            mode=Order.Mode.TABLE,
+            table=self.first_table,
+            status=Order.Status.PARTIALLY_PAID,
+            subtotal=400,
+            paid_amount=100,
+            remaining_amount=300,
+            business_date=self.today,
+        )
+        Order.objects.create(
+            mode=Order.Mode.TABLE,
+            table=self.first_table,
+            status=Order.Status.CLOSED,
+            subtotal=450,
+            paid_amount=100,
+            remaining_amount=350,
+            business_date=self.today,
+        )
+        Order.objects.create(
+            mode=Order.Mode.TABLE,
+            table=self.first_table,
+            status=Order.Status.PAID,
+            subtotal=500,
+            paid_amount=500,
+            business_date=self.today - timedelta(days=1),
+        )
+
+        response = self.client.get(
+            "/api/reports/orders/",
+            {"business_date": self.today.isoformat(), "table_id": self.first_table.id},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["business_date"], self.today.isoformat())
+        self.assertEqual(response.data["table_id"], self.first_table.id)
+        self.assertEqual(
+            [order["id"] for order in response.data["orders"]],
+            [latest.id, earliest.id],
+        )
+        self.assertEqual(
+            [order["table_name"] for order in response.data["orders"]],
+            ["T1", "T1"],
+        )
+
+
 class MonthlyReportTests(TestCase):
     def setUp(self):
         self.client = APIClient()

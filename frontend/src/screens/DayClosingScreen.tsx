@@ -7,7 +7,7 @@ import {
 } from "react";
 import camelIcon from "../assets/camel.png";
 import { ApiError, apiGet, apiPost } from "../lib/api";
-import { faJalaliDate, faNum, faTime, money, UNIT } from "../lib/format";
+import { faJalaliDate, faNum, money, UNIT } from "../lib/format";
 import { Badge, Button, Modal } from "../components/ui";
 import { JalaliDateInput } from "../components/JalaliDateInput";
 
@@ -17,32 +17,6 @@ type UnresolvedOrder = {
   table_name: string | null;
   status: string;
   remaining_amount: number;
-};
-
-type SettledItem = {
-  product_name: string;
-  quantity: number;
-  unit_price: number;
-  line_total: number;
-};
-
-type SettledPayment = {
-  amount: number;
-  method: string;
-  payer_label: string | null;
-};
-
-type SettledOrder = {
-  id: number;
-  order_number: number;
-  table_name: string | null;
-  status: string;
-  subtotal: number;
-  paid_amount: number;
-  remaining_amount: number;
-  closed_at: string | null;
-  items: SettledItem[];
-  payments: SettledPayment[];
 };
 
 type ClosingPreview = {
@@ -56,7 +30,6 @@ type ClosingPreview = {
   open_orders_count: number;
   table_usage_count: number;
   unresolved_orders: UnresolvedOrder[];
-  settled_orders: SettledOrder[];
 };
 
 type ClosingResult = ClosingPreview & {
@@ -127,19 +100,6 @@ const syncMeta: Partial<
   pending: { label: "در انتظار همگام‌سازی", tone: "warn" },
   failed: { label: "ناموفق", tone: "bad" },
   local_only: { label: "فقط محلی", tone: "default" },
-};
-
-const paymentMethodLabels: Record<string, string> = {
-  cash: "نقدی",
-  card: "کارت",
-  bank_transfer: "کارت‌به‌کارت",
-};
-
-const orderStatusLabels: Record<string, string> = {
-  paid: "پرداخت‌شده",
-  closed: "بسته‌شده",
-  partially_paid: "پرداخت جزئی",
-  open: "باز",
 };
 
 function todayLocalDate() {
@@ -237,98 +197,6 @@ function RevenueWithUnit({
       <span>{money(value ?? 0)}</span>
       <span className="text-sm text-muted">{UNIT}</span>
     </span>
-  );
-}
-
-// One settled ticket, always fully expanded: the supervisor reviews what was
-// rung up and what covered it, with no clicking, before the close clears the
-// register.
-function SettledOrderReceipt({ order }: { order: SettledOrder }) {
-  const columns = "grid grid-cols-[1.6fr_0.5fr_1fr_1fr] gap-2";
-
-  return (
-    <div
-      data-testid={`settled-order-${order.id}`}
-      className="rounded-xl border border-border bg-surface px-4 py-3"
-    >
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="font-bold text-text">
-          سفارش {faNum(order.order_number)}
-          {order.table_name ? ` · ${order.table_name}` : ""}
-        </div>
-        <div className="flex items-center gap-3">
-          {order.closed_at && (
-            <span className="text-sm font-semibold text-muted">
-              {faTime(order.closed_at)}
-            </span>
-          )}
-          <Badge tone={order.remaining_amount > 0 ? "warn" : "good"}>
-            {orderStatusLabels[order.status] ?? order.status}
-          </Badge>
-        </div>
-      </div>
-
-      <div className="mt-3 overflow-hidden rounded-lg border border-border/70">
-        <div
-          className={`${columns} bg-surface-2 px-3 py-2 text-xs font-black text-muted`}
-        >
-          <div>نام</div>
-          <div>تعداد</div>
-          <div>قیمت واحد</div>
-          <div className="text-left">جمع</div>
-        </div>
-        {order.items.length === 0 ? (
-          <div className="px-3 py-2 text-sm font-semibold text-muted">
-            بدون آیتم
-          </div>
-        ) : (
-          order.items.map((item, index) => (
-            <div
-              key={index}
-              className={`${columns} border-t border-border/50 px-3 py-2 text-sm font-semibold`}
-            >
-              <div className="text-text">{item.product_name}</div>
-              <div className="text-muted">×{faNum(item.quantity)}</div>
-              <div className="text-muted">{money(item.unit_price)}</div>
-              <div className="text-left font-black text-text">
-                {money(item.line_total)}
-              </div>
-            </div>
-          ))
-        )}
-      </div>
-
-      <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-border/70 pt-3 text-sm font-semibold">
-        <span className="text-muted">جمع فیش</span>
-        <RevenueWithUnit value={order.subtotal} className="font-black text-text" />
-        <span className="text-muted">پرداخت‌شده</span>
-        <RevenueWithUnit value={order.paid_amount} className="font-black text-good" />
-        {order.remaining_amount > 0 && (
-          <>
-            <span className="text-muted">باقی‌مانده</span>
-            <RevenueWithUnit
-              value={order.remaining_amount}
-              className="font-black text-warn"
-            />
-          </>
-        )}
-      </div>
-
-      {order.payments.length > 0 && (
-        <div className="mt-2 flex flex-wrap gap-2">
-          {order.payments.map((payment, index) => (
-            <span
-              key={index}
-              className="rounded-lg border border-border bg-surface-2 px-3 py-1 text-sm font-semibold text-text"
-            >
-              {paymentMethodLabels[payment.method] ?? payment.method}{" "}
-              {money(payment.amount)}
-              {payment.payer_label ? ` · ${payment.payer_label}` : ""}
-            </span>
-          ))}
-        </div>
-      )}
-    </div>
   );
 }
 
@@ -636,26 +504,6 @@ export function DayClosingScreen() {
                   {faNum(preview?.table_usage_count ?? 0)}
                 </StatCard>
               </div>
-
-              {preview && preview.settled_orders?.length > 0 && (
-                <div className="mt-5 rounded-xl border border-border bg-surface-2/40 p-4">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="text-base font-black text-text">
-                      سفارش‌های تسویه‌شده
-                    </div>
-                    <div className="text-sm font-semibold text-muted">
-                      {faNum(preview.settled_orders.length)} فیش
-                    </div>
-                  </div>
-                  {/* Nothing is collapsed; the list scrolls so the reports below
-                      stay reachable on a busy night. */}
-                  <div className="mt-3 grid max-h-[36rem] gap-3 overflow-y-auto">
-                    {preview.settled_orders.map((order) => (
-                      <SettledOrderReceipt key={order.id} order={order} />
-                    ))}
-                  </div>
-                </div>
-              )}
 
               {preview && preview.unresolved_orders.length > 0 && (
                 <div className="mt-5 rounded-xl border border-warn/30 bg-warn/10 p-4">

@@ -3,6 +3,7 @@ import { Sidebar, navItems, type Screen } from "./components/Sidebar";
 import { Titlebar } from "./components/Titlebar";
 import { EventScreen } from "./screens/EventScreen";
 import { DayClosingScreen } from "./screens/DayClosingScreen";
+import { OrderReportScreen } from "./screens/OrderReportScreen";
 import { MenuScreen } from "./screens/MenuScreen";
 import { OrderPanel, type Category, type Product } from "./screens/OrderPanel";
 import { OwnerScreen } from "./screens/OwnerScreen";
@@ -224,6 +225,8 @@ export default function App() {
                 />
               ) : screen === "menu" ? (
                 <MenuScreen />
+              ) : screen === "orders-report" ? (
+                <OrderReportScreen />
               ) : screen === "closing" ? (
                 unlocked ? <DayClosingScreen /> : <DayClosingGate />
               ) : screen === "attendance-entry" ? (
