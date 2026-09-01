@@ -5,9 +5,14 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { DateObject } from "react-multi-date-picker";
+import persian from "react-date-object/calendars/persian";
+import persian_fa from "react-date-object/locales/persian_fa";
+import gregorian from "react-date-object/calendars/gregorian";
+import gregorian_en from "react-date-object/locales/gregorian_en";
 import camelIcon from "../assets/camel.png";
 import { ApiError, apiGet, apiPost } from "../lib/api";
-import { faJalaliDate, faNum, money, UNIT } from "../lib/format";
+import { enNum, faJalaliDate, faNum, money, UNIT } from "../lib/format";
 import { Badge, Button, Modal } from "../components/ui";
 import { JalaliDateInput } from "../components/JalaliDateInput";
 
@@ -61,8 +66,8 @@ type MonthlyDaily = {
 };
 
 type MonthlyReport = {
-  year: number;
-  month: number;
+  from: string;
+  to: string;
   total_sales: number;
   cash_total: number;
   card_total: number;
@@ -109,10 +114,49 @@ function todayLocalDate() {
 }
 
 function defaultMonth() {
-  const now = new Date();
+  const now = new DateObject({ calendar: persian, locale: persian_fa });
   return {
-    year: String(now.getFullYear()),
-    month: String(now.getMonth() + 1),
+    year: enNum(now.format("YYYY")),
+    month: enNum(now.format("M")),
+  };
+}
+
+const JALALI_MONTHS = [
+  "فروردین",
+  "اردیبهشت",
+  "خرداد",
+  "تیر",
+  "مرداد",
+  "شهریور",
+  "مهر",
+  "آبان",
+  "آذر",
+  "دی",
+  "بهمن",
+  "اسفند",
+];
+
+function jalaliMonthRange(yearValue: string, monthValue: string) {
+  const year = parseInteger(yearValue);
+  const month = parseInteger(monthValue);
+
+  if (year === null || month === null || month < 1 || month > 12) {
+    return null;
+  }
+
+  const selectedMonth = new DateObject({
+    calendar: persian,
+    locale: persian_fa,
+    year,
+    month,
+    day: 1,
+  });
+  const first = new DateObject(selectedMonth).toFirstOfMonth();
+  const last = new DateObject(selectedMonth).toLastOfMonth();
+
+  return {
+    from: first.convert(gregorian, gregorian_en).format("YYYY-MM-DD"),
+    to: last.convert(gregorian, gregorian_en).format("YYYY-MM-DD"),
   };
 }
 
@@ -243,10 +287,9 @@ export function DayClosingScreen() {
   }, [loadPreview, showToast]);
 
   const loadMonthlyReport = useCallback(async (yearValue: string, monthValue: string) => {
-    const year = parseInteger(yearValue);
-    const month = parseInteger(monthValue);
+    const range = jalaliMonthRange(yearValue, monthValue);
 
-    if (year === null || month === null || month < 1 || month > 12) {
+    if (!range) {
       showToast({ tone: "warn", message: "سال و ماه گزارش را درست وارد کنید" });
       return;
     }
@@ -255,7 +298,7 @@ export function DayClosingScreen() {
 
     try {
       const report = await apiGet<MonthlyReport>(
-        `/reports/monthly/?year=${year}&month=${month}`,
+        `/reports/monthly/?from=${range.from}&to=${range.to}`,
       );
       setMonthlyReport(report);
     } catch {
@@ -588,14 +631,19 @@ export function DayClosingScreen() {
                   </label>
                   <label className="block text-sm font-semibold text-muted">
                     ماه
-                    <input
-                      className="mt-2 w-20 rounded-xl border border-border bg-surface-2 px-3 py-2 text-base font-semibold text-text outline-none transition focus:border-accent"
-                      inputMode="numeric"
+                    <select
+                      className="mt-2 min-h-11 rounded-xl border border-border bg-surface-2 px-3 py-2 text-base font-semibold text-text outline-none transition focus:border-accent"
                       value={monthForm.month}
                       onChange={(event) =>
                         setMonthForm({ ...monthForm, month: event.target.value })
                       }
-                    />
+                    >
+                      {JALALI_MONTHS.map((name, index) => (
+                        <option key={name} value={index + 1}>
+                          {name}
+                        </option>
+                      ))}
+                    </select>
                   </label>
                   <Button type="submit" disabled={isMonthlyLoading}>
                     {isMonthlyLoading ? "در حال دریافت..." : "نمایش"}

@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { RevenueProvider } from "../context/RevenueContext";
@@ -276,5 +276,116 @@ describe("DayClosingScreen", () => {
     await waitFor(() => {
       expect(screen.getAllByRole("button", { name: "بستن روز" })).toHaveLength(1);
     });
+  });
+
+  it("requests the selected named Jalali month as its Gregorian date range", async () => {
+    const user = userEvent.setup();
+
+    mockedApiGet.mockImplementation(async (path) => {
+      if (path === "/day-closing/preview/") {
+        return previewWithOpenOrders;
+      }
+      if (path.startsWith("/reports/range/")) {
+        return {
+          from: "2026-03-25",
+          to: "2026-03-25",
+          orders_count: 0,
+          orders_total: 0,
+          items: [],
+          items_quantity_total: 0,
+          items_amount_total: 0,
+        };
+      }
+      if (path.startsWith("/reports/monthly/")) {
+        return {
+          from: "2026-03-21",
+          to: "2026-04-20",
+          total_sales: 0,
+          cash_total: 0,
+          card_total: 0,
+          bank_transfer_total: 0,
+          purchases_total: 0,
+          days_count: 0,
+          daily: [],
+        };
+      }
+      throw new Error(`Unexpected path: ${path}`);
+    });
+
+    render(
+      <RevenueProvider>
+        <DayClosingScreen />
+      </RevenueProvider>,
+    );
+
+    await screen.findByText("پیش‌نمایش بستن روز");
+    const monthSelect = screen.getByLabelText("ماه");
+    const monthlyForm = monthSelect.closest("form");
+    expect(monthlyForm).not.toBeNull();
+    expect(screen.getByRole("option", { name: "اردیبهشت" })).toHaveValue("2");
+
+    await user.selectOptions(monthSelect, "2");
+    await user.click(within(monthlyForm!).getByRole("button", { name: "نمایش" }));
+
+    await waitFor(() => {
+      expect(mockedApiGet).toHaveBeenCalledWith(
+        "/reports/monthly/?from=2026-04-21&to=2026-05-21",
+      );
+    });
+  });
+
+  it("defaults the named month selector to the current Jalali month", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-02T12:00:00"));
+
+    mockedApiGet.mockImplementation(async (path) => {
+      if (path === "/day-closing/preview/") {
+        return previewWithOpenOrders;
+      }
+      if (path.startsWith("/reports/range/")) {
+        return {
+          from: "2026-09-02",
+          to: "2026-09-02",
+          orders_count: 0,
+          orders_total: 0,
+          items: [],
+          items_quantity_total: 0,
+          items_amount_total: 0,
+        };
+      }
+      if (path.startsWith("/reports/monthly/")) {
+        return {
+          from: "2026-08-23",
+          to: "2026-09-22",
+          total_sales: 0,
+          cash_total: 0,
+          card_total: 0,
+          bank_transfer_total: 0,
+          purchases_total: 0,
+          days_count: 0,
+          daily: [],
+        };
+      }
+      throw new Error(`Unexpected path: ${path}`);
+    });
+
+    try {
+      render(
+        <RevenueProvider>
+          <DayClosingScreen />
+        </RevenueProvider>,
+      );
+
+      await act(async () => {
+        await vi.runAllTimersAsync();
+      });
+
+      expect(screen.getByLabelText("ماه")).toHaveValue("6");
+      expect(mockedApiGet).toHaveBeenCalledWith(
+        "/reports/monthly/?from=2026-08-23&to=2026-09-22",
+      );
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

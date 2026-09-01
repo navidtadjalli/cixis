@@ -1,5 +1,5 @@
 import tempfile
-from datetime import timedelta
+from datetime import date, timedelta
 from pathlib import Path
 from unittest.mock import patch
 
@@ -178,6 +178,8 @@ class MonthlyReportTests(TestCase):
             f"/api/reports/monthly/?year={day.year}&month={day.month}"
         )
 
+        self.assertEqual(response.data["year"], day.year)
+        self.assertEqual(response.data["month"], day.month)
         self.assertEqual(response.status_code, 200)
         row = self._row_for(response.data, day)
         self.assertEqual(row["orders_count"], 1)
@@ -299,3 +301,51 @@ class MonthlyReportTests(TestCase):
         self.assertEqual(rows[0]["total_sales"], 300)
         self.assertFalse(rows[0]["is_closed"])
         self.assertEqual(response.data["days_count"], 1)
+
+    def test_monthly_report_honors_a_jalali_months_gregorian_date_range(self):
+        """Farvardin 1405 spans 2026-03-21 through 2026-04-20."""
+        included_start = date(2026, 3, 21)
+        included_end = date(2026, 4, 20)
+        excluded_before = date(2026, 3, 20)
+        excluded_after = date(2026, 4, 21)
+        included_open_day = date(2026, 4, 1)
+
+        for business_date, total_sales in (
+            (included_start, 100),
+            (included_end, 200),
+            (excluded_before, 300),
+            (excluded_after, 400),
+        ):
+            DayClosing.objects.create(
+                business_date=business_date,
+                total_sales=total_sales,
+                cash_total=total_sales,
+                orders_count=1,
+            )
+
+        for business_date, amount in (
+            (included_open_day, 50),
+            (excluded_before, 60),
+            (excluded_after, 70),
+        ):
+            order = Order.objects.create(
+                mode=Order.Mode.TABLE,
+                table=self.table,
+                status=Order.Status.PAID,
+                business_date=business_date,
+            )
+            Payment.objects.create(
+                order=order, amount=amount, method=Payment.Method.CASH
+            )
+
+        response = self.client.get(
+            "/api/reports/monthly/",
+            {"from": "2026-03-21", "to": "2026-04-20"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            [row["business_date"] for row in response.data["daily"]],
+            ["2026-03-21", "2026-04-01", "2026-04-20"],
+        )
+        self.assertEqual(response.data["total_sales"], 350)

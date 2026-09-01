@@ -1,6 +1,6 @@
 """Reports: monthly DayClosing rollup and an ad-hoc date-range order report."""
 from collections import defaultdict
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 
 from django.db.models import Sum
@@ -30,21 +30,42 @@ _MONTH_TOTAL_KEYS = (
 
 @api_view(["GET"])
 def monthly(request):
-    """Aggregate the month's days for ?year=&month= (defaults to current month).
+    """Aggregate days for an inclusive Gregorian ?from=&to= range.
+
+    The closing-day UI converts its Jalali month selection to this range before
+    making the request. Legacy Gregorian ?year=&month= parameters remain as a
+    fallback for API consumers that have not migrated yet.
 
     Closed days come from their DayClosing snapshot. Days that have orders but
     were never closed (e.g. an app update landed before the day was closed) are
     computed live from Order/Payment data so their counts aren't lost; those
     rows carry ``is_closed: false``.
     """
-    today = services.business_today()
-    year = int(request.query_params.get("year", today.year))
-    month = int(request.query_params.get("month", today.month))
+    raw_from = request.query_params.get("from")
+    raw_to = request.query_params.get("to")
+    uses_legacy_month = not raw_from and not raw_to
+
+    if raw_from or raw_to:
+        if not raw_from or not raw_to:
+            raise ValidationError({"detail": "بازه تاریخ را کامل وارد کنید."})
+        from_date = _parse_date(raw_from, "from")
+        to_date = _parse_date(raw_to, "to")
+        if from_date > to_date:
+            raise ValidationError({"detail": "تاریخ شروع بعد از تاریخ پایان است."})
+    else:
+        today = services.business_today()
+        year = int(request.query_params.get("year", today.year))
+        month = int(request.query_params.get("month", today.month))
+        from_date = date(year, month, 1)
+        if month == 12:
+            to_date = date(year + 1, 1, 1) - timedelta(days=1)
+        else:
+            to_date = date(year, month + 1, 1) - timedelta(days=1)
 
     # A date may have several closings (cashier closes whenever they like), so
     # sum each date's snapshots into a single daily row.
     closings = DayClosing.objects.filter(
-        business_date__year=year, business_date__month=month
+        business_date__range=(from_date, to_date)
     ).order_by("business_date")
     closed_dates = {dc.business_date for dc in closings}
 
@@ -81,8 +102,7 @@ def monthly(request):
     # one duplicate row per order instead of one row per date.
     open_dates = (
         Order.objects.filter(
-            business_date__year=year,
-            business_date__month=month,
+            business_date__range=(from_date, to_date),
             day_closing__isnull=True,
         )
         .exclude(business_date__in=closed_dates)
@@ -112,8 +132,13 @@ def monthly(request):
 
     return Response(
         {
-            "year": year,
-            "month": month,
+            **(
+                {"year": year, "month": month}
+                if uses_legacy_month
+                else {}
+            ),
+            "from": from_date.isoformat(),
+            "to": to_date.isoformat(),
             **totals,
             "days_count": len(daily),
             "daily": daily,
