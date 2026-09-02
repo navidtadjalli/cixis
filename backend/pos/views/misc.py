@@ -9,26 +9,27 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
 from ..models import AppSetting
+from ..passwords import (
+    DEFAULT_MANAGER_PASSWORD,
+    DEFAULT_REVENUE_PASSWORD,
+    SOURCE_GOD_PASSWORD_HASH,
+)
 from ..publish import publish_menu
 from ..storage import SETTING_KEYS, StorageNotConfigured, storage_config, website_url
 from ..sync import retry_pending, sync_enabled
 
 # Default revenue password if none is configured yet. Stored hashed.
-DEFAULT_REVENUE_PASSWORD = "1234"
 REVENUE_TOKEN_TTL_SECONDS = 60
 
 # Default manager password (staff report tier). The manager is prompted to
 # change it on first unlock; ``manager_password_changed`` tracks whether they
 # have. Stored hashed.
-DEFAULT_MANAGER_PASSWORD = "0000"
 
 # Master "god code" override. Accepted in place of the revenue password so a
 # forgotten password is never a hard lockout: it unlocks بستن روز and can be
 # used as the current password to set a new one. It also gates the publish
 # settings, which hold the storage credentials. Stored hashed, never raw.
-GOD_CODE_HASH = (
-    "pbkdf2_sha256$870000$gOdPBjJb3OXLTp2xpAoAeB$jQ5VH8bk15uw1QeYbYFBb44HDu+ZOGRVKk8OMDUR8lQ="
-)
+GOD_CODE_HASH = SOURCE_GOD_PASSWORD_HASH
 
 # Blanking these in the form means "keep what is stored", so the operator never
 # has to retype a credential just to change the bucket name.

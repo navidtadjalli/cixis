@@ -13,8 +13,8 @@ GOD_CODE = "open-sesame"
 @patch("pos.views.misc.GOD_CODE_HASH", make_password(GOD_CODE))
 class ManagerPasswordTests(TestCase):
     def setUp(self):
-        AppSetting.objects.create(
-            key="revenue_password", value=make_password("1234")
+        AppSetting.objects.update_or_create(
+            key="revenue_password", defaults={"value": make_password("1234")}
         )
 
     def test_unlock_with_default_flags_must_change(self):

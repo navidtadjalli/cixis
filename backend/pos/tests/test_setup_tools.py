@@ -26,8 +26,8 @@ PASSWORD = "1234"
 @patch("pos.views.misc.GOD_CODE_HASH", make_password(GOD_CODE))
 class SetupToolsTests(TestCase):
     def setUp(self):
-        AppSetting.objects.create(
-            key="revenue_password", value=make_password(PASSWORD)
+        AppSetting.objects.update_or_create(
+            key="revenue_password", defaults={"value": make_password(PASSWORD)}
         )
 
     def post(self, name, payload=None, password=PASSWORD):
