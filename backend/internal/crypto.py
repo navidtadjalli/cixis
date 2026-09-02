@@ -1,5 +1,7 @@
 """Version-one authenticated encryption helpers for internal payloads."""
 from dataclasses import dataclass
+import hashlib
+import hmac
 import json
 import secrets
 from collections.abc import Mapping
@@ -32,6 +34,12 @@ def _canonical_json(payload: Mapping[str, Any]) -> bytes:
 def _validate_key(key: bytes) -> None:
     if len(key) != KEY_BYTES:
         raise ValueError("internal encryption keys must be 256 bits")
+
+
+def blind_index(*, key: bytes, value: str) -> bytes:
+    """Return the 32-byte HMAC-SHA-256 equality index for a canonical value."""
+    _validate_key(key)
+    return hmac.new(key, value.encode("utf-8"), hashlib.sha256).digest()
 
 
 def encrypt_payload(
