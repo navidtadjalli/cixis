@@ -21,10 +21,15 @@ from internal.crypto import (
 
 FORMAT_VERSION = 1
 NONCE_RETRY_LIMIT = 16
+INTERNAL_DATABASE_NAME = "internal.sqlite3"
 
 
 class IntegrityError(ValueError):
     """Raised when an encrypted-store integrity invariant is not satisfied."""
+
+
+class StoreBoundaryError(ValueError):
+    """Raised when a caller attempts to use a database outside its internal root."""
 
 
 @dataclass(frozen=True)
@@ -38,25 +43,31 @@ class EncryptedRecord:
 
 
 def verify_live_manifest(store: "InternalStore", record_type: str) -> None:
-    """Verify one domain manifest through the store's authenticated boundary."""
     store.verify_live_manifest(record_type)
 
 
 class InternalStore:
-    """Persist encrypted payloads in an internal-only SQLite database."""
+    """Persist encrypted payloads below the authoritative internal-data root."""
 
     def __init__(
         self,
         *,
-        database_path: Path,
+        internal_root: Path,
         installation_id: str,
         encryption_key: bytes,
         blind_index_key: bytes,
         integrity_key: bytes,
         key_generation: int,
         nonce_source: Callable[[], bytes] | None = None,
+        database_path: Path | None = None,
     ) -> None:
-        self.database_path = Path(database_path)
+        self.internal_root = Path(internal_root).resolve()
+        expected_database_path = self.internal_root / INTERNAL_DATABASE_NAME
+        if database_path is not None and Path(database_path).resolve() != expected_database_path:
+            raise StoreBoundaryError(
+                "internal database path must be the fixed file inside the internal root"
+            )
+        self.database_path = expected_database_path
         self.installation_id = installation_id
         self.encryption_key = encryption_key
         self.blind_index_key = blind_index_key
@@ -65,6 +76,7 @@ class InternalStore:
         self._nonce_source = nonce_source or (lambda: secrets.token_bytes(12))
         self.database_path.parent.mkdir(parents=True, exist_ok=True)
         self._connection = sqlite3.connect(self.database_path)
+        self._connection.execute("PRAGMA foreign_keys = ON")
         self._connection.execute("PRAGMA secure_delete = ON")
         self._connection.execute("PRAGMA temp_store = MEMORY")
         self._connection.execute(
@@ -209,9 +221,25 @@ class InternalStore:
         if expected.get("records") != actual_records:
             raise IntegrityError("live record manifest does not match the database")
 
+    def verify_live_manifests(self) -> None:
+        """Verify every record type observed in internal records or manifests."""
+        record_types = self._connection.execute(
+            """
+            SELECT record_type FROM internal_encrypted_records
+            UNION
+            SELECT record_type FROM internal_live_manifests
+            ORDER BY record_type
+            """
+        ).fetchall()
+        for (record_type,) in record_types:
+            self.verify_live_manifest(record_type)
+
     def sqlite_security_pragmas(self) -> dict[str, int]:
         """Return active connection hardening settings for startup verification."""
         return {
+            "foreign_keys": int(
+                self._connection.execute("PRAGMA foreign_keys").fetchone()[0]
+            ),
             "secure_delete": int(
                 self._connection.execute("PRAGMA secure_delete").fetchone()[0]
             ),
@@ -222,7 +250,7 @@ class InternalStore:
 
     def read(self, record_uuid: str) -> dict[str, Any]:
         record = self._record_by_uuid(record_uuid)
-        self.verify_live_manifest(record.record_type)
+        self.verify_live_manifests()
         return self._decrypt(record)
 
     def read_with_revision(
@@ -232,7 +260,7 @@ class InternalStore:
         record = self._record_by_uuid(record_uuid)
         if record.revision != expected_revision:
             raise IntegrityError("record revision does not match the expected revision")
-        self.verify_live_manifest(record.record_type)
+        self.verify_live_manifests()
         return self._decrypt(record)
 
     def _record_by_uuid(self, record_uuid: str) -> EncryptedRecord:

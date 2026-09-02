@@ -13,7 +13,7 @@ class InternalStoreTests(SimpleTestCase):
         with TemporaryDirectory() as temporary_directory:
             database_path = Path(temporary_directory) / "internal.sqlite3"
             store = InternalStore(
-                database_path=database_path,
+                internal_root=database_path.parent,
                 installation_id="c3e29c3e-e3e6-4a47-bb42-a07269bec0d4",
                 encryption_key=bytes(range(32)),
                 blind_index_key=b"b" * 32,
@@ -37,7 +37,7 @@ class InternalStoreTests(SimpleTestCase):
 
         with TemporaryDirectory() as temporary_directory:
             store = InternalStore(
-                database_path=Path(temporary_directory) / "internal.sqlite3",
+                internal_root=Path(temporary_directory),
                 installation_id="c3e29c3e-e3e6-4a47-bb42-a07269bec0d4",
                 encryption_key=bytes(range(32)),
                 blind_index_key=b"b" * 32,
@@ -58,7 +58,7 @@ class InternalStoreTests(SimpleTestCase):
         ).__next__
         with TemporaryDirectory() as temporary_directory:
             store = InternalStore(
-                database_path=Path(temporary_directory) / "internal.sqlite3",
+                internal_root=Path(temporary_directory),
                 installation_id="c3e29c3e-e3e6-4a47-bb42-a07269bec0d4",
                 encryption_key=bytes(range(32)),
                 blind_index_key=b"b" * 32,
@@ -80,7 +80,7 @@ class InternalStoreTests(SimpleTestCase):
         with TemporaryDirectory() as temporary_directory:
             database_path = Path(temporary_directory) / "internal.sqlite3"
             store = InternalStore(
-                database_path=database_path,
+                internal_root=database_path.parent,
                 installation_id="c3e29c3e-e3e6-4a47-bb42-a07269bec0d4",
                 encryption_key=bytes(range(32)),
                 blind_index_key=b"b" * 32,
@@ -106,7 +106,7 @@ class InternalStoreTests(SimpleTestCase):
         with TemporaryDirectory() as temporary_directory:
             database_path = Path(temporary_directory) / "internal.sqlite3"
             store = InternalStore(
-                database_path=database_path,
+                internal_root=database_path.parent,
                 installation_id="c3e29c3e-e3e6-4a47-bb42-a07269bec0d4",
                 encryption_key=bytes(range(32)),
                 blind_index_key=b"b" * 32,
@@ -135,7 +135,7 @@ class InternalStoreTests(SimpleTestCase):
         with TemporaryDirectory() as temporary_directory:
             database_path = Path(temporary_directory) / "internal.sqlite3"
             store = InternalStore(
-                database_path=database_path,
+                internal_root=database_path.parent,
                 installation_id="c3e29c3e-e3e6-4a47-bb42-a07269bec0d4",
                 encryption_key=bytes(range(32)),
                 blind_index_key=b"b" * 32,
@@ -160,7 +160,7 @@ class InternalStoreTests(SimpleTestCase):
 
         with TemporaryDirectory() as temporary_directory:
             store = InternalStore(
-                database_path=Path(temporary_directory) / "internal.sqlite3",
+                internal_root=Path(temporary_directory),
                 installation_id="c3e29c3e-e3e6-4a47-bb42-a07269bec0d4",
                 encryption_key=bytes(range(32)),
                 blind_index_key=b"b" * 32,
@@ -170,7 +170,7 @@ class InternalStoreTests(SimpleTestCase):
 
             self.assertEqual(
                 store.sqlite_security_pragmas(),
-                {"secure_delete": 1, "temp_store": 2},
+                {"foreign_keys": 1, "secure_delete": 1, "temp_store": 2},
             )
 
     def test_module_manifest_verifier_checks_a_store_domain(self):
@@ -179,7 +179,7 @@ class InternalStoreTests(SimpleTestCase):
 
         with TemporaryDirectory() as temporary_directory:
             store = InternalStore(
-                database_path=Path(temporary_directory) / "internal.sqlite3",
+                internal_root=Path(temporary_directory),
                 installation_id="c3e29c3e-e3e6-4a47-bb42-a07269bec0d4",
                 encryption_key=bytes(range(32)),
                 blind_index_key=b"b" * 32,
@@ -199,7 +199,7 @@ class InternalStoreTests(SimpleTestCase):
         with TemporaryDirectory() as temporary_directory:
             database_path = Path(temporary_directory) / "internal.sqlite3"
             store = InternalStore(
-                database_path=database_path,
+                internal_root=database_path.parent,
                 installation_id="c3e29c3e-e3e6-4a47-bb42-a07269bec0d4",
                 encryption_key=bytes(range(32)),
                 blind_index_key=b"b" * 32,
@@ -224,7 +224,7 @@ class InternalStoreTests(SimpleTestCase):
         with TemporaryDirectory() as temporary_directory:
             database_path = Path(temporary_directory) / "internal.sqlite3"
             store = InternalStore(
-                database_path=database_path,
+                internal_root=database_path.parent,
                 installation_id="c3e29c3e-e3e6-4a47-bb42-a07269bec0d4",
                 encryption_key=bytes(range(32)),
                 blind_index_key=b"b" * 32,
@@ -249,7 +249,7 @@ class InternalStoreTests(SimpleTestCase):
         with TemporaryDirectory() as temporary_directory:
             database_path = Path(temporary_directory) / "internal.sqlite3"
             store = InternalStore(
-                database_path=database_path,
+                internal_root=database_path.parent,
                 installation_id="c3e29c3e-e3e6-4a47-bb42-a07269bec0d4",
                 encryption_key=bytes(range(32)),
                 blind_index_key=b"b" * 32,
@@ -267,6 +267,82 @@ class InternalStoreTests(SimpleTestCase):
                     WHERE record_uuid = ? AND field_name = 'name'
                     """,
                     (b"x" * 32, record.uuid),
+                )
+
+            with self.assertRaises(IntegrityError):
+                store.read(record.uuid)
+
+    def test_rejects_a_cixis_sqlite_target_without_changing_its_schema_or_data(self):
+        """Breaks if an internal store can create tables in a CiXiS database."""
+        from internal.store import InternalStore, StoreBoundaryError
+
+        with TemporaryDirectory() as temporary_directory:
+            temporary_path = Path(temporary_directory)
+            cixis_database = temporary_path / "cixis.sqlite3"
+            with sqlite3.connect(cixis_database) as connection:
+                connection.execute(
+                    "CREATE TABLE pos_appsetting (key TEXT PRIMARY KEY, value TEXT NOT NULL)"
+                )
+                connection.execute(
+                    "INSERT INTO pos_appsetting (key, value) VALUES ('profile', 'safe')"
+                )
+            with sqlite3.connect(cixis_database) as connection:
+                before_schema = connection.execute(
+                    "SELECT type, name, tbl_name, sql FROM sqlite_master ORDER BY name"
+                ).fetchall()
+                before_rows = connection.execute(
+                    "SELECT key, value FROM pos_appsetting ORDER BY key"
+                ).fetchall()
+
+            with self.assertRaises(StoreBoundaryError):
+                InternalStore(
+                    internal_root=temporary_path / "cixis-internal",
+                    database_path=cixis_database,
+                    installation_id="c3e29c3e-e3e6-4a47-bb42-a07269bec0d4",
+                    encryption_key=bytes(range(32)),
+                    blind_index_key=b"b" * 32,
+                    integrity_key=b"i" * 32,
+                    key_generation=1,
+                )
+
+            with sqlite3.connect(cixis_database) as connection:
+                self.assertEqual(
+                    connection.execute(
+                        "SELECT type, name, tbl_name, sql FROM sqlite_master ORDER BY name"
+                    ).fetchall(),
+                    before_schema,
+                )
+                self.assertEqual(
+                    connection.execute(
+                        "SELECT key, value FROM pos_appsetting ORDER BY key"
+                    ).fetchall(),
+                    before_rows,
+                )
+
+    def test_read_rejects_an_inserted_record_type_without_a_manifest(self):
+        """Breaks if reads verify only their caller-selected record type."""
+        from internal.store import IntegrityError, InternalStore
+
+        with TemporaryDirectory() as temporary_directory:
+            database_path = Path(temporary_directory) / "internal.sqlite3"
+            store = InternalStore(
+                internal_root=database_path.parent,
+                installation_id="c3e29c3e-e3e6-4a47-bb42-a07269bec0d4",
+                encryption_key=bytes(range(32)),
+                blind_index_key=b"b" * 32,
+                integrity_key=b"i" * 32,
+                key_generation=1,
+            )
+            record = store.create("roster", {"name": "آرش"})
+
+            with sqlite3.connect(database_path) as connection:
+                connection.execute(
+                    """
+                    INSERT INTO internal_encrypted_records
+                        (uuid, record_type, key_generation, revision, nonce, ciphertext)
+                    VALUES (?, 'advance', 2, 1, ?, ?)
+                    """,
+                    ("179af63f-7de7-4d7c-bb3e-17d941a660c2", b"z" * 12, record.ciphertext),
                 )
 
             with self.assertRaises(IntegrityError):
