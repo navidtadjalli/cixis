@@ -32,7 +32,8 @@
 - [x] Durable implementation plan written and self-reviewed.
 - [x] Task 1: Establish CiXiS compatibility settings and migration safety.
 - [x] Task 2: Create isolated internal Django runtime and encrypted persistence primitives.
-- [ ] Task 3: Implement keyring, provisioning, and password-generation protocol.
+- [x] Task 3 core: Implement role-separated keyring, password policy, and staged password-generation protocol.
+- [ ] Task 3 integration: Complete first-run provisioning only after Task 5 supplies idempotent roster import and Task 10 supplies verified initial backup.
 - [ ] Task 4: Enforce channel/session authentication and role authorization.
 - [ ] Task 5: Implement CiXiS compatibility checks, read-only catalog access, and roster import.
 - [ ] Task 6: Implement Jalali contract and encrypted roster domain.
@@ -56,9 +57,18 @@
 - Task 2 encrypted store completed in `207071c`: isolated SQLite encrypted
   records, blinded indexes, nonce registry, authenticated live manifests,
   AAD-bound records, and secure SQLite pragmas. CiXiS SQLite remains untouched.
-- Exact next action: add failing `internal.tests.test_keyring` and
-  `internal.tests.test_provisioning` cases for role-envelope access and strong
-  password policy, then implement Task 3 Argon2id keyring provisioning.
+- Task 3 core completed: versioned Argon2id envelopes with
+  supervisor/manager/God capability separation, strong-password validation,
+  staged wrapper generations, narrow injected CAS collaboration, and restart
+  reconciliation. `InternalKeyring.provision` creates only key material; it is
+  not full application provisioning.
+- Full Task 3 first-run completion remains deferred: Task 5 must provide the
+  idempotent initial-roster importer and Task 10 must provide the verified
+  initial-backup collaborator. Do not substitute fake imports/backups or mark
+  full provisioning complete until both collaborators are available.
+- Exact next action: continue Task 4 auth/session work or Task 5/Task 10;
+  wire the deferred first-run orchestration only after their real collaborators
+  exist.
 
 ## File Map
 
