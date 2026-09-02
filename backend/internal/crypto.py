@@ -46,8 +46,21 @@ def encrypt_payload(
     *, key: bytes, aad: bytes, payload: Mapping[str, Any]
 ) -> EncryptedPayload:
     """Encrypt one canonical JSON payload with a freshly generated GCM nonce."""
+    return _encrypt_payload_with_nonce(
+        key=key,
+        aad=aad,
+        payload=payload,
+        nonce=secrets.token_bytes(NONCE_BYTES),
+    )
+
+
+def _encrypt_payload_with_nonce(
+    *, key: bytes, aad: bytes, payload: Mapping[str, Any], nonce: bytes
+) -> EncryptedPayload:
+    """Encrypt with a caller-reserved nonce used by the SQLite repository."""
     _validate_key(key)
-    nonce = secrets.token_bytes(NONCE_BYTES)
+    if len(nonce) != NONCE_BYTES:
+        raise ValueError("internal encryption nonces must be 96 bits")
     ciphertext = AESGCM(key).encrypt(nonce, _canonical_json(payload), aad)
     return EncryptedPayload(nonce=nonce, ciphertext=ciphertext)
 
