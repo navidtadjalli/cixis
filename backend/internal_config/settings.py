@@ -18,6 +18,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "internal.middleware.RejectInternalOriginMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
@@ -30,6 +31,9 @@ ASGI_APPLICATION = "internal_config.asgi.application"
 INTERNAL_DATABASE_PATH = os.environ.get(
     "CIXIS_INTERNAL_DB_PATH", str(BASE_DIR / "internal.sqlite3")
 )
+INTERNAL_CHANNEL_SECRET = os.environ.get("CIXIS_INTERNAL_CHANNEL_SECRET")
+INTERNAL_KEYRING_PATH = os.environ.get("CIXIS_INTERNAL_KEYRING_PATH")
+INTERNAL_INSTALLATION_ID = os.environ.get("CIXIS_INTERNAL_INSTALLATION_ID")
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
@@ -45,7 +49,7 @@ STATIC_URL = "static/"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 REST_FRAMEWORK = {
-    "DEFAULT_AUTHENTICATION_CLASSES": [],
+    "DEFAULT_AUTHENTICATION_CLASSES": ["internal.auth.ChannelSessionAuthentication"],
     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"],
     "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"],
     "UNAUTHENTICATED_USER": None,

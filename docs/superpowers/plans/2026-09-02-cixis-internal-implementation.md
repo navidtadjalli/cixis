@@ -34,7 +34,7 @@
 - [x] Task 2: Create isolated internal Django runtime and encrypted persistence primitives.
 - [x] Task 3 core: Implement role-separated keyring, password policy, and staged password-generation protocol.
 - [ ] Task 3 integration: Complete first-run provisioning only after Task 5 supplies idempotent roster import and Task 10 supplies verified initial backup.
-- [ ] Task 4: Enforce channel/session authentication and role authorization.
+- [x] Task 4: Enforce channel/session authentication and role authorization.
 - [ ] Task 5: Implement CiXiS compatibility checks, read-only catalog access, and roster import.
 - [ ] Task 6: Implement Jalali contract and encrypted roster domain.
 - [ ] Task 7: Implement attendance entry, calculations, and correction rules.
@@ -67,9 +67,12 @@
   idempotent initial-roster importer and Task 10 must provide the verified
   initial-backup collaborator. Do not substitute fake imports/backups or mark
   full provisioning complete until both collaborators are available.
-- Exact next action: continue Task 4 auth/session work or Task 5/Task 10;
-  wire the deferred first-run orchestration only after their real collaborators
-  exist.
+- Task 4 is complete: backend requests require an Electron-supplied 256-bit
+  channel secret plus an in-memory role session. Task 6 replaces the protected
+  roster placeholder with real domain services; Task 11 injects real Electron
+  child-process shutdown.
+- Exact next action: continue Task 5 or Task 10, then wire deferred first-run
+  orchestration only after their real collaborators exist.
 
 ## File Map
 
@@ -235,7 +238,7 @@ git commit -m "feat: provision internal role keyrings"
 - Produces `ChannelSessionAuthentication`, `require_role`, `SessionRegistry`, and `/api/internal/unlock/`, `/lock/`, `/health/` endpoints.
 - Consumes an Electron-provided channel secret and Task 3 keyring roles; domain endpoints in Tasks 6–10 use these decorators only.
 
-- [ ] **Step 1: Write failing authentication boundary tests**
+- [x] **Step 1: Write failing authentication boundary tests**
 
 ```python
 def test_domain_route_rejects_direct_http_and_wrong_channel(self):
@@ -243,22 +246,22 @@ def test_domain_route_rejects_direct_http_and_wrong_channel(self):
     self.assertEqual(self.channel_client("wrong").get("/api/internal/roster/").status_code, 401)
 ```
 
-- [ ] **Step 2: Run auth tests and confirm unauthenticated routes are not yet protected**
+- [x] **Step 2: Run auth tests and confirm unauthenticated routes are not yet protected**
 
 Run: `cd backend && DJANGO_SETTINGS_MODULE=internal_config.settings .venv/bin/python manage.py test internal.tests.test_auth`
 
-- [ ] **Step 3: Implement in-memory role tokens, exponential unlock throttling, and strict DRF authentication**
+- [x] **Step 3: Implement in-memory role tokens, exponential unlock throttling, and strict DRF authentication**
 
 ```python
 def require_role(*roles: Role):
     return permission_classes([ChannelSessionAuthentication, RolePermission(roles)])
 ```
 
-- [ ] **Step 4: Verify manager/supervisor/God denials, idle/absolute expiry, lock revocation, failed-integrity shutdown hook, and no CORS allowance**
+- [x] **Step 4: Verify manager/supervisor/God denials, idle/absolute expiry, lock revocation, failed-integrity shutdown hook, and no CORS allowance**
 
 Run: `cd backend && DJANGO_SETTINGS_MODULE=internal_config.settings .venv/bin/python manage.py test internal.tests.test_auth`
 
-- [ ] **Step 5: Commit authentication boundary**
+- [x] **Step 5: Commit authentication boundary**
 
 ```bash
 git add backend/internal backend/internal_config

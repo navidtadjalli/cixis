@@ -1,4 +1,6 @@
-from django.urls import path
+from django.urls import include, path
 
 
-urlpatterns = []
+urlpatterns = [
+    path("api/internal/", include("internal.urls")),
+]
