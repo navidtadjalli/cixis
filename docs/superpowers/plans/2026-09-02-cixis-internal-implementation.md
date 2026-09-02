@@ -31,7 +31,7 @@
 - [x] Repository/spec inspection and baseline frontend test run.
 - [x] Durable implementation plan written and self-reviewed.
 - [x] Task 1: Establish CiXiS compatibility settings and migration safety.
-- [~] Task 2: Create isolated internal Django runtime and encrypted persistence primitives.
+- [x] Task 2: Create isolated internal Django runtime and encrypted persistence primitives.
 - [ ] Task 3: Implement keyring, provisioning, and password-generation protocol.
 - [ ] Task 4: Enforce channel/session authentication and role authorization.
 - [ ] Task 5: Implement CiXiS compatibility checks, read-only catalog access, and roster import.
@@ -53,10 +53,12 @@
 - Task 2 foundations completed in `5064255`, `b2f1d56`, and `289f8c0`:
   pinned crypto dependencies, AES-256-GCM payload helpers, HMAC blind indexes,
   and the separate `internal_config` Django runtime.
-- Exact next action: add a failing `internal.tests.test_store` case for an
-  encrypted record persisted in a temporary internal SQLite store, then add the
-  internal-only encrypted-record schema/repository with AAD-bound revision,
-  nonce uniqueness, and manifest verification. Keep CiXiS SQLite untouched.
+- Task 2 encrypted store completed in `207071c`: isolated SQLite encrypted
+  records, blinded indexes, nonce registry, authenticated live manifests,
+  AAD-bound records, and secure SQLite pragmas. CiXiS SQLite remains untouched.
+- Exact next action: add failing `internal.tests.test_keyring` and
+  `internal.tests.test_provisioning` cases for role-envelope access and strong
+  password policy, then implement Task 3 Argon2id keyring provisioning.
 
 ## File Map
 
