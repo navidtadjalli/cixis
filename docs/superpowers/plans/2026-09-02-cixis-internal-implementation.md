@@ -31,7 +31,7 @@
 - [x] Repository/spec inspection and baseline frontend test run.
 - [x] Durable implementation plan written and self-reviewed.
 - [x] Task 1: Establish CiXiS compatibility settings and migration safety.
-- [ ] Task 2: Create isolated internal Django runtime and encrypted persistence primitives.
+- [~] Task 2: Create isolated internal Django runtime and encrypted persistence primitives.
 - [ ] Task 3: Implement keyring, provisioning, and password-generation protocol.
 - [ ] Task 4: Enforce channel/session authentication and role authorization.
 - [ ] Task 5: Implement CiXiS compatibility checks, read-only catalog access, and roster import.
