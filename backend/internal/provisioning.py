@@ -29,7 +29,8 @@ def validate_strong_password(
         and any(not character.isalpha() for character in candidate)
         and candidate not in {"1234", "0000"}
         and candidate != current
-        and (confirmation is None or confirmation == candidate)
+        and confirmation is not None
+        and confirmation == candidate
     )
 
 
@@ -58,6 +59,7 @@ def change_password(
             role,
             current_password=current_password,
             new_password=new_password,
+            confirmation=confirmation,
             expected_generation=expected_generation,
         )
     except KeyAccessDenied as error:
@@ -100,6 +102,7 @@ def reset_role_password(
             target_role,
             god_password=god_password,
             new_password=new_password,
+            confirmation=confirmation,
             expected_generation=expected_generation,
         )
     except KeyAccessDenied as error:

@@ -48,7 +48,8 @@ class DomainKeyset:
 class UnlockedKeysets:
     """Decrypted material returned only by a role-authorized unlock method."""
 
-    generation: int
+    key_generation: int
+    wrapper_generation: int
     operational: DomainKeyset
     _manager: DomainKeyset | None
 
@@ -91,6 +92,7 @@ class InternalKeyring:
         internal_root: Path,
         installation_id: str,
         passwords: Mapping[str, str],
+        confirmations: Mapping[str, str] | None = None,
         password_generations: Mapping[str, int] | None = None,
     ) -> "InternalKeyring":
         """Create independent domain keysets once; retries verify and reuse them."""
@@ -98,15 +100,17 @@ class InternalKeyring:
 
         root = Path(internal_root).resolve()
         path = root / KEYRING_FILENAME
+        if set(passwords) != ROLES:
+            raise ValueError("provisioning requires supervisor, manager, and God passwords")
+        if confirmations is None or set(confirmations) != ROLES:
+            raise ValueError("provisioning requires explicit confirmation for every role")
         if path.exists():
             existing = cls.load(root, installation_id)
             for role in ROLES:
                 existing._unlock(role, passwords[role], allow_god=True)
             return existing
-        if set(passwords) != ROLES:
-            raise ValueError("provisioning requires supervisor, manager, and God passwords")
-        for password in passwords.values():
-            if not validate_strong_password(password, confirmation=password):
+        for role, password in passwords.items():
+            if not validate_strong_password(password, confirmation=confirmations[role]):
                 raise ValueError("provisioning password does not meet the strong-password rule")
         generations = password_generations or {}
         if set(generations) - ROLES:
@@ -138,6 +142,7 @@ class InternalKeyring:
                 "key_generation": key_generation,
                 "envelopes": envelopes,
                 "staged": {},
+                "retained": {role: [] for role in ROLES},
             },
         )
         keyring._persist()
@@ -173,6 +178,7 @@ class InternalKeyring:
         *,
         current_password: str,
         new_password: str,
+        confirmation: str,
         expected_generation: int,
     ) -> int:
         """Write and fsync an N+1 envelope while retaining the active envelope."""
@@ -184,6 +190,7 @@ class InternalKeyring:
             role=role,
             unlocked=unlocked,
             new_password=new_password,
+            confirmation=confirmation,
             expected_generation=expected_generation,
         )
 
@@ -193,6 +200,7 @@ class InternalKeyring:
         *,
         god_password: str,
         new_password: str,
+        confirmation: str,
         expected_generation: int,
     ) -> int:
         """Use recovery-only God material to stage a forgotten role's replacement."""
@@ -200,7 +208,8 @@ class InternalKeyring:
             raise KeyAccessDenied("God may reset only supervisor or manager passwords")
         recovery = self.unlock_for_recovery("god", god_password)
         unlocked = UnlockedKeysets(
-            generation=self._state["key_generation"],
+            key_generation=self._state["key_generation"],
+            wrapper_generation=self._state["envelopes"][target_role]["wrapper_generation"],
             operational=recovery.operational,
             _manager=recovery.manager if target_role == "manager" else None,
         )
@@ -208,6 +217,7 @@ class InternalKeyring:
             role=target_role,
             unlocked=unlocked,
             new_password=new_password,
+            confirmation=confirmation,
             expected_generation=expected_generation,
         )
 
@@ -216,9 +226,31 @@ class InternalKeyring:
         staged = self._state["staged"].get(role)
         if staged is None or staged["wrapper_generation"] != generation:
             raise KeyringStateError("no matching staged envelope to activate")
-        self._state["envelopes"][role] = staged
+        self._activate_envelope(role, staged)
         del self._state["staged"][role]
         self._persist()
+
+    def retained_generations(self, role: str) -> list[int]:
+        """Return wrappers retained until a clean backup can retire them."""
+        if role not in ROLES:
+            raise KeyAccessDenied("unsupported keyring role")
+        return [envelope["wrapper_generation"] for envelope in self._state["retained"][role]]
+
+    def unlock_retained(
+        self, role: str, password: str, *, wrapper_generation: int
+    ) -> UnlockedKeysets:
+        """Authenticate a retained envelope without exposing raw keyring state."""
+        if role not in ROLES or role == "god":
+            raise KeyAccessDenied("unsupported keyring role")
+        for envelope in self._state["retained"][role]:
+            if envelope["wrapper_generation"] == wrapper_generation:
+                return _decrypt_envelope(
+                    envelope=envelope,
+                    role=role,
+                    password=password,
+                    installation_id=self.installation_id,
+                )
+        raise KeyAccessDenied("requested retained key envelope is unavailable")
 
     def reconcile_generations(self, observed_generations: Mapping[str, int]) -> list[str]:
         """Finish committed staging or discard pre-CAS staging after restart."""
@@ -231,7 +263,7 @@ class InternalKeyring:
             active_generation = self._state["envelopes"][role]["wrapper_generation"]
             staged_generation = staged["wrapper_generation"]
             if observed == staged_generation:
-                self._state["envelopes"][role] = staged
+                self._activate_envelope(role, staged)
                 del self._state["staged"][role]
                 actions.append(f"activated:{role}")
             elif observed == active_generation:
@@ -243,19 +275,26 @@ class InternalKeyring:
             self._persist()
         return actions
 
+    def _activate_envelope(self, role: str, envelope: dict[str, Any]) -> None:
+        retained = self._state["retained"][role]
+        retained.append(self._state["envelopes"][role])
+        self._state["retained"][role] = retained[-1:]
+        self._state["envelopes"][role] = envelope
+
     def _stage_unlocked(
         self,
         *,
         role: str,
         unlocked: UnlockedKeysets,
         new_password: str,
+        confirmation: str,
         expected_generation: int,
     ) -> int:
         from internal.provisioning import validate_strong_password
 
         if role not in ROLES:
             raise KeyAccessDenied("unsupported keyring role")
-        if not validate_strong_password(new_password, confirmation=new_password):
+        if not validate_strong_password(new_password, confirmation=confirmation):
             raise ValueError("replacement password does not meet the strong-password rule")
         active = self._state["envelopes"][role]
         if active["wrapper_generation"] != expected_generation:
@@ -294,6 +333,18 @@ class InternalKeyring:
             raise KeyringStateError("keyring does not contain every role envelope")
         if not isinstance(self._state.get("staged"), dict):
             raise KeyringStateError("keyring staged envelope state is invalid")
+        self._state.setdefault("retained", {role: [] for role in ROLES})
+        if set(self._state["retained"]) != ROLES:
+            raise KeyringStateError("keyring retained envelope state is invalid")
+        for role, envelope in self._state["envelopes"].items():
+            _validate_envelope_metadata(envelope, role, self.installation_id)
+        for role, envelope in self._state["staged"].items():
+            _validate_envelope_metadata(envelope, role, self.installation_id)
+        for role, retained in self._state["retained"].items():
+            if not isinstance(retained, list) or len(retained) > 1:
+                raise KeyringStateError("keyring retained envelope count is invalid")
+            for envelope in retained:
+                _validate_envelope_metadata(envelope, role, self.installation_id)
 
     def _persist(self) -> None:
         self.internal_root.mkdir(parents=True, exist_ok=True)
@@ -304,18 +355,16 @@ class InternalKeyring:
             prefix=".keyring-", dir=self.internal_root
         )
         try:
-            os.fchmod(descriptor, 0o600)
+            if not _is_windows():
+                os.fchmod(descriptor, 0o600)
             with os.fdopen(descriptor, "wb") as temporary:
                 descriptor = -1
                 temporary.write(encoded)
                 temporary.flush()
                 os.fsync(temporary.fileno())
             os.replace(temporary_name, self.path)
-            directory_descriptor = os.open(self.internal_root, os.O_DIRECTORY)
-            try:
-                os.fsync(directory_descriptor)
-            finally:
-                os.close(directory_descriptor)
+            if not _is_windows():
+                _fsync_directory(self.internal_root)
         finally:
             if descriptor != -1:
                 os.close(descriptor)
@@ -412,8 +461,58 @@ def _decrypt_envelope(
     if role in {"manager", "god"} and manager is None:
         raise KeyringStateError("privileged envelope lacks manager key material")
     return UnlockedKeysets(
-        generation=metadata["wrapper_generation"], operational=operational, _manager=manager
+        key_generation=metadata["key_generation"],
+        wrapper_generation=metadata["wrapper_generation"],
+        operational=operational,
+        _manager=manager,
     )
+
+
+def _validate_envelope_metadata(
+    envelope: Mapping[str, Any], role: str, installation_id: str
+) -> None:
+    metadata = {
+        field: envelope.get(field)
+        for field in (
+            "format_version",
+            "installation_id",
+            "role",
+            "envelope_id",
+            "wrapper_generation",
+            "key_generation",
+        )
+    }
+    if (
+        metadata["format_version"] != FORMAT_VERSION
+        or metadata["installation_id"] != installation_id
+        or metadata["role"] != role
+        or not isinstance(metadata["envelope_id"], str)
+        or not isinstance(metadata["wrapper_generation"], int)
+        or not isinstance(metadata["key_generation"], int)
+        or metadata["wrapper_generation"] < 0
+        or metadata["key_generation"] < 1
+        or envelope.get("kdf") != {"algorithm": "argon2id", **KDF_PARAMS}
+    ):
+        raise KeyringStateError("key envelope metadata does not match this role")
+    try:
+        if len(_decode(envelope["salt"])) != KDF_SALT_BYTES:
+            raise ValueError
+        if len(_decode(envelope["nonce"])) != 12 or len(_decode(envelope["ciphertext"])) < 16:
+            raise ValueError
+    except (KeyError, TypeError, ValueError) as error:
+        raise KeyringStateError("key envelope binary metadata is invalid") from error
+
+
+def _is_windows() -> bool:
+    return os.name == "nt"
+
+
+def _fsync_directory(directory: Path) -> None:
+    descriptor = os.open(directory, os.O_DIRECTORY)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
 
 
 def _envelope_aad(metadata: Mapping[str, Any]) -> bytes:

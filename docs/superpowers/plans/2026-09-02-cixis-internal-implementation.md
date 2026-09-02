@@ -57,11 +57,12 @@
 - Task 2 encrypted store completed in `207071c`: isolated SQLite encrypted
   records, blinded indexes, nonce registry, authenticated live manifests,
   AAD-bound records, and secure SQLite pragmas. CiXiS SQLite remains untouched.
-- Task 3 core completed: versioned Argon2id envelopes with
-  supervisor/manager/God capability separation, strong-password validation,
-  staged wrapper generations, narrow injected CAS collaboration, and restart
-  reconciliation. `InternalKeyring.provision` creates only key material; it is
-  not full application provisioning.
+- Task 3 core completed and review-hardened: versioned Argon2id envelopes with
+  supervisor/manager/God capability separation, explicit first-run password
+  confirmations, independent key/wrapper generations, Windows-safe atomic
+  persistence, retained prior wrappers with no generic God unlock, staged CAS
+  collaboration, and restart reconciliation. `InternalKeyring.provision`
+  creates only key material; it is not full application provisioning.
 - Full Task 3 first-run completion remains deferred: Task 5 must provide the
   idempotent initial-roster importer and Task 10 must provide the verified
   initial-backup collaborator. Do not substitute fake imports/backups or mark
