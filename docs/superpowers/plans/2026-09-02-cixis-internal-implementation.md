@@ -45,6 +45,19 @@
 - [ ] Task 13: Remove deprecated CiXiS tracker/password mutation surfaces and migrate legacy rows safely.
 - [ ] Task 14: Build paired release pipeline and complete integration/security verification.
 
+### Resumption State
+
+- Task 1 completed in `275de39`: CiXiS-compatible settings migration, strict
+  readonly catalog bridge, narrow password-generation CAS, and migration
+  isolation tests.
+- Task 2 foundations completed in `5064255`, `b2f1d56`, and `289f8c0`:
+  pinned crypto dependencies, AES-256-GCM payload helpers, HMAC blind indexes,
+  and the separate `internal_config` Django runtime.
+- Exact next action: add a failing `internal.tests.test_store` case for an
+  encrypted record persisted in a temporary internal SQLite store, then add the
+  internal-only encrypted-record schema/repository with AAD-bound revision,
+  nonce uniqueness, and manifest verification. Keep CiXiS SQLite untouched.
+
 ## File Map
 
 | Path | Responsibility |
