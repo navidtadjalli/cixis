@@ -64,3 +64,41 @@ failure callback, unlock throttle, and browser-origin rejection.
 - Task 10 supplies real integrity verifier.
 - Task 11 supplies Electron main-process lifecycle callback and keeps secrets,
   tokens, and backend port out of renderer scope.
+
+## Security fix round 1
+
+`SessionRegistry.terminate()` now clears sessions before invoking its callback.
+If the callback fails, it raises a generic `ShutdownCallbackFailed` error and
+leaves termination pending, so a later `terminate()` retries it. A callback is
+marked complete only after it returns. This preserves fail-closed session
+revocation without silently suppressing a failed Electron termination request.
+
+Channel parsing now accepts only canonical, unpadded URL-safe Base64 for exactly
+32 bytes. It rejects standard `+`/`/` alphabet forms, `=` padding, nonzero
+unused pad bits, and malformed values before constant-time comparison.
+
+RED:
+
+```text
+$ DJANGO_SETTINGS_MODULE=internal_config.settings .venv/bin/python manage.py test internal.tests.test_auth
+Found 10 test(s).
+FAIL: callback RuntimeError not raised
+FAIL: standard Base64, padding, and noncanonical pad-bit channel headers returned 501, not 401
+FAILED (failures=4)
+```
+
+GREEN:
+
+```text
+$ DJANGO_SETTINGS_MODULE=internal_config.settings .venv/bin/python manage.py test internal.tests.test_auth
+Found 10 test(s).
+..........
+Ran 10 tests in 0.029s
+OK
+
+$ DJANGO_SETTINGS_MODULE=internal_config.settings .venv/bin/python manage.py test internal.tests
+Found 48 test(s).
+................................................
+Ran 48 tests in 26.396s
+OK
+```

@@ -26,7 +26,15 @@ def _utcnow() -> datetime:
 
 
 def _decode_256_bit_secret(value: object) -> bytes | None:
-    if not isinstance(value, str) or not value:
+    if (
+        not isinstance(value, str)
+        or not value
+        or "=" in value
+        or any(
+            character not in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
+            for character in value
+        )
+    ):
         return None
     try:
         padded = value + "=" * (-len(value) % 4)
@@ -35,7 +43,10 @@ def _decode_256_bit_secret(value: object) -> bytes | None:
         )
     except (UnicodeEncodeError, ValueError, binascii.Error):
         return None
-    return decoded if len(decoded) == 32 else None
+    if len(decoded) != 32:
+        return None
+    canonical = base64.urlsafe_b64encode(decoded).rstrip(b"=").decode("ascii")
+    return decoded if hmac.compare_digest(value, canonical) else None
 
 
 def channel_is_authenticated(request) -> bool:
@@ -98,11 +109,15 @@ class SessionRegistry:
     def terminate(self) -> None:
         self._sessions.clear()
         if not self._shutdown_requested:
-            self._shutdown_requested = True
             try:
                 self._shutdown_callback()
             except Exception:
-                pass
+                raise ShutdownCallbackFailed("backend shutdown callback failed") from None
+            self._shutdown_requested = True
+
+
+class ShutdownCallbackFailed(RuntimeError):
+    """A fail-closed termination request that must be retried by its caller."""
 
 
 class UnlockThrottle:

@@ -112,6 +112,27 @@ class AuthenticationBoundaryTests(SimpleTestCase):
         self.assertIsNone(absolute_registry.validate(token))
         self.assertIn("absolute", self.shutdown_calls)
 
+    def test_shutdown_callback_failure_revokes_sessions_and_remains_retryable(self):
+        """Breaks if failed termination is silently swallowed and never retried."""
+        from internal.auth import SessionRegistry
+
+        attempts = []
+
+        def fail_once_then_shutdown():
+            attempts.append("called")
+            if len(attempts) == 1:
+                raise RuntimeError("callback unavailable")
+
+        registry = SessionRegistry(shutdown_callback=fail_once_then_shutdown)
+        token = registry.create("supervisor")
+
+        with self.assertRaises(RuntimeError):
+            registry.terminate()
+        self.assertIsNone(registry.validate(token))
+        registry.terminate()
+        registry.terminate()
+        self.assertEqual(attempts, ["called", "called"])
+
     def test_lock_revokes_the_session_and_uses_injected_shutdown_hook(self):
         """Breaks if explicit lock leaves a token alive or skips backend lifecycle hook."""
         client, _ = self.session_client("supervisor")
@@ -144,6 +165,23 @@ class AuthenticationBoundaryTests(SimpleTestCase):
         self.assertEqual(second.status_code, 429)
         self.assertNotIn("wrong-password", first.content.decode())
         self.assertNotIn(CHANNEL_SECRET, first.content.decode())
+
+    def test_noncanonical_channel_header_encodings_are_rejected(self):
+        """Breaks if alternate Base64 spellings authenticate the same channel bytes."""
+        canonical = "__________________________________________8"
+        token = self.registry.create("supervisor")
+        with override_settings(INTERNAL_CHANNEL_SECRET=canonical):
+            for malformed in (
+                "//////////////////////////////////////////8",
+                "__________________________________________8=",
+                "__________________________________________9",
+            ):
+                with self.subTest(channel_header=malformed):
+                    response = Client(
+                        HTTP_X_CIXIS_CHANNEL_SECRET=malformed,
+                        HTTP_X_CIXIS_SESSION_TOKEN=token,
+                    ).get("/api/internal/roster/")
+                    self.assertEqual(response.status_code, 401)
 
     def test_internal_origin_requests_are_rejected_without_cors_allowance(self):
         """Breaks if a browser origin gains a permissive path into local APIs."""

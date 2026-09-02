@@ -71,6 +71,10 @@
   channel secret plus an in-memory role session. Task 6 replaces the protected
   roster placeholder with real domain services; Task 11 injects real Electron
   child-process shutdown.
+- Task 4 fix round 1 is complete: only unpadded canonical URL-safe Base64
+  encodings of exactly 32 channel-secret bytes authenticate. Session revocation
+  is immediate, while a failed shutdown callback raises a generic error and is
+  retried until it succeeds rather than being silently suppressed.
 - Exact next action: continue Task 5 or Task 10, then wire deferred first-run
   orchestration only after their real collaborators exist.
 
