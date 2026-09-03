@@ -77,10 +77,13 @@ class SessionRegistry:
         self._shutdown_callback = shutdown_callback or (lambda: None)
         self._sessions: dict[str, Session] = {}
         self._shutdown_requested = False
+        self._termination_pending = False
 
     def create(self, role: str) -> str:
         if role not in VALID_ROLES:
             raise ValueError("unsupported role")
+        if self._termination_pending:
+            raise ShutdownCallbackFailed("backend shutdown callback failed")
         now = self._clock()
         token = secrets.token_urlsafe(32)
         self._sessions[token] = Session(token, role, now, now)
@@ -108,6 +111,7 @@ class SessionRegistry:
 
     def terminate(self) -> None:
         self._sessions.clear()
+        self._termination_pending = True
         if not self._shutdown_requested:
             try:
                 self._shutdown_callback()

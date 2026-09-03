@@ -129,6 +129,8 @@ class AuthenticationBoundaryTests(SimpleTestCase):
         with self.assertRaises(RuntimeError):
             registry.terminate()
         self.assertIsNone(registry.validate(token))
+        with self.assertRaises(RuntimeError):
+            registry.create("supervisor")
         registry.terminate()
         registry.terminate()
         self.assertEqual(attempts, ["called", "called"])
