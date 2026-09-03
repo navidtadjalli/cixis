@@ -96,3 +96,76 @@ completed with exit status 0.
   product's POS-import boundary. API wiring must pass Task 1's
   `compare_and_swap_password_setting` plus current hashes/generations once Task
   4 session services exist.
+
+## Review fix round 1
+
+### Root causes corrected
+
+- `_persist` called POSIX-only `os.fchmod` and opened a directory with
+  `os.O_DIRECTORY` unconditionally. It now preserves file flush plus atomic
+  replace everywhere, while POSIX mode/directory fsync run only off Windows.
+- `UnlockedKeysets.generation` conflated the immutable data-key generation with
+  the mutable password-wrapper generation. It now exposes `key_generation` and
+  `wrapper_generation` separately; a re-wrap keeps `key_generation == 1` and
+  a reopened `InternalStore` can still decrypt existing records.
+- Activation/reconciliation discarded active wrappers. State now retains the
+  immediately prior envelope per role, validates retained metadata on load,
+  and authenticates it only through `unlock_retained` until backup cleanup.
+- New password confirmation is mandatory. Provisioning requires a complete
+  explicit role-confirmation mapping; stage/change/reset paths carry the exact
+  supplied confirmation rather than echoing the new password.
+
+### Review RED/GREEN evidence
+
+RED command:
+
+```text
+$ DJANGO_SETTINGS_MODULE=internal_config.settings .venv/bin/python manage.py test internal.tests.test_keyring internal.tests.test_provisioning -v 2
+Found 14 test(s).
+ERROR: ...test_windows_persistence... AttributeError from os.fchmod
+ERROR: ...test_unlocked_keysets... no attribute 'key_generation'
+ERROR: ...test_activation_retains... no attribute 'unlock_retained'
+FAIL: ...test_provisioning_rejects... ValueError not raised
+FAILED (failures=1, errors=3)
+```
+
+GREEN commands:
+
+```text
+$ DJANGO_SETTINGS_MODULE=internal_config.settings .venv/bin/python manage.py test internal.tests.test_keyring internal.tests.test_provisioning -v 1
+Found 20 test(s).
+....................
+Ran 20 tests in 10.633s
+OK
+
+$ DJANGO_SETTINGS_MODULE=internal_config.settings .venv/bin/python manage.py test internal.tests -v 1
+Found 37 test(s).
+.....................................
+Ran 37 tests in 10.647s
+OK
+
+$ DJANGO_SETTINGS_MODULE=config.settings .venv/bin/python manage.py test pos.tests.test_internal_compatibility -v 1
+Found 5 test(s).
+.....
+Ran 5 tests in 0.856s
+OK
+```
+
+The focused coverage injects failures before/after staged persistence, during
+password hashing/CAS, and after successful CAS before activation. Each asserts
+a real reloaded keyring retains at least one authorized envelope; manager/God
+self-change, God manager-reset, retained generation N, and Windows behavior
+are covered. Python compilation and `git diff --check` also passed.
+
+## Recovery follow-up
+
+- `unlock_retained` now rejects the God role, so an old recovery envelope
+  cannot bypass God’s recovery-only access boundary through the generic retained
+  wrapper API. Future Task 10 recovery/backup wiring must expose any needed God
+  retained-envelope path as an explicit recovery-only service method.
+- RED/GREEN: `test_generic_retained_unlock_rejects_god_envelopes` first failed
+  because generic retained unlock returned God material; it passes after the
+  role gate was added.
+- Final recovery verification: focused keyring/provisioning suite passed 21
+  tests; full `internal.tests` suite passed 38 tests; POS compatibility under
+  `config.settings` passed 5 tests; `git diff --check` passed.

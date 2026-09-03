@@ -25,3 +25,33 @@ policy, staged wrapper/CAS protocol, and restart reconciliation).
 Task 3 full provisioning: deferred until Task 5 supplies the real idempotent
 roster importer and Task 10 supplies verified initial backup. No fake
 collaborator or success path is permitted before then.
+Task 3: fix round 1/5 complete — Windows-safe atomic persistence, explicit
+key/wrapper generations, one retained prior envelope per role, explicit
+confirmations, and failure-window/all-role coverage added. Full provisioning
+remains deferred to Tasks 5 and 10; no CiXiS write surface changed.
+Task 3 core: complete (commits 2d24eab, 153d8f9; task review plus fix-round scoped re-review clean). Full first-run orchestration remains deferred to Tasks 5 and 10.
+Task 4: complete. Electron-only channel/session boundary validates an exact
+256-bit secret, keeps role capabilities in backend/Electron memory, requires
+strict DRF authorization, applies unlock backoff, and revokes on lock, expiry,
+or integrity failure. `/api/internal/roster/` remains a protected 501
+placeholder for Task 6. Shutdown stays an injected callback for Task 11 to
+wire to actual Electron child-process termination.
+Task 3: recovery follow-up — generic retained-envelope access rejects God;
+Task 10 must provide any God retained-envelope use through an explicit
+recovery-only service boundary.
+Task 4: fix round 1/5 complete — sessions revoke before shutdown callback;
+callback failure is generic, visible, and retryable until callback success.
+Only unpadded canonical URL-safe Base64 encodings of exactly 32 bytes authenticate;
+standard Base64, padding, malformed pad bits, and malformed headers reject.
+Task 4: scoped re-review accepted — retry state now also rejects fresh session
+creation after a shutdown callback failure (commit d0bcc4c), preserving fail-closed
+process replacement while the injected callback remains retryable. Fresh
+`internal.tests` verification: 48 passed. Canonical unpadded URL-safe 32-byte
+channel decoding and malformed-header rejection remain covered by the Task 4
+boundary suite.
+Task 5: complete — verified CiXiS profile contract, read-only active catalog,
+and idempotent encrypted roster import are implemented. Import keys every
+source employee by installation plus source ID, authenticates existing blind
+indexes before reuse, and leaves a full CiXiS SQLite schema/row snapshot
+unchanged. First-run provisioning is still deferred: Task 10 must supply the
+real verified backup before import is wired into a successful provision path.
