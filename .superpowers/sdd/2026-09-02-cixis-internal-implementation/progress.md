@@ -61,3 +61,19 @@ revision-binds updates, sorts/filters active state, and enforces manager-only
 deactivation/reactivation. Domain writes authenticate all existing encrypted
 records before manifest replacement, preventing mutation from concealing prior
 ciphertext or blind-index tampering. Fresh `internal.tests`: 65 passed.
+Task 7: complete — attendance uses exact integer-minute shift calculations,
+one encrypted row per staff/date/shift, transactional duplicate/date/active-role
+validation, and supervisor-immutable saved rows. Manager update/delete uses a
+signed preview bound to every affected staff-month attendance revision and
+recomputed before/after impact; confirmation rechecks locks and commits the
+mutation, manifest, and predecessor-bound audit atomically. Operational and
+manager audit records select their separate Task 3 keysets within the same
+SQLite transaction; operational-only stores cannot decrypt manager audit.
+Task 7 review fix round 1/5 complete — moved mutable-date validation under
+`BEGIN IMMEDIATE`, made audit head-check/append intrinsically transactional,
+made delete revision checks mandatory, and enforced append-only audit records
+at the store boundary. Fresh `internal.tests`: 81 passed.
+Task 9 retains ownership of generalized correction/audit views and full-chain
+runtime verification. Task 10 retains encrypted-keyring audit head/sequence
+anchors, journaled anchor updates, and whole-set rollback/recovery guarantees;
+Task 7 does not fake those later dependencies.

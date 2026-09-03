@@ -10,6 +10,7 @@ from rest_framework.status import (
     HTTP_401_UNAUTHORIZED,
     HTTP_403_FORBIDDEN,
     HTTP_404_NOT_FOUND,
+    HTTP_409_CONFLICT,
     HTTP_429_TOO_MANY_REQUESTS,
     HTTP_501_NOT_IMPLEMENTED,
 )
@@ -70,6 +71,10 @@ def health(request):
 
 def _roster_service():
     return getattr(settings, "INTERNAL_ROSTER_SERVICE", None)
+
+
+def _attendance_service():
+    return getattr(settings, "INTERNAL_ATTENDANCE_SERVICE", None)
 
 
 def _member_response(member):
@@ -150,3 +155,133 @@ def roster_reactivate(request, member_uuid):
         return Response(_member_response(member), status=HTTP_200_OK)
     except (ValueError, PermissionError, KeyError) as error:
         return _roster_error(error)
+
+
+def _attendance_response(entry):
+    return {
+        "uuid": entry.uuid,
+        "staff_uuid": entry.staff_uuid,
+        "staff_name": entry.staff_name,
+        "jalali_date": entry.jalali_date,
+        "shift": entry.shift,
+        "check_in_hour": entry.check_in_hour,
+        "check_in_minute": entry.check_in_minute,
+        "check_out_hour": entry.check_out_hour,
+        "check_out_minute": entry.check_out_minute,
+        "metrics": {
+            "worked": entry.metrics.worked,
+            "late": entry.metrics.late,
+            "early": entry.metrics.early,
+            "overtime": entry.metrics.overtime,
+            "shifts": entry.metrics.shifts,
+        },
+        "revision": entry.revision,
+    }
+
+
+def _attendance_error(error):
+    from internal.jalali import DateLockedError, JalaliValidationError
+    from internal.services.attendance import (
+        AttendanceConflictError,
+        AttendanceDuplicateError,
+        AttendancePermissionError,
+        AttendanceValidationError,
+    )
+
+    if isinstance(error, AttendancePermissionError):
+        return Response({"detail": "Not permitted."}, status=HTTP_403_FORBIDDEN)
+    if isinstance(error, (AttendanceDuplicateError, AttendanceConflictError)):
+        return Response({"detail": "Attendance conflict."}, status=HTTP_409_CONFLICT)
+    if isinstance(
+        error,
+        (AttendanceValidationError, JalaliValidationError, DateLockedError),
+    ):
+        return Response({"detail": "Invalid attendance input."}, status=HTTP_400_BAD_REQUEST)
+    if isinstance(error, KeyError):
+        return Response({"detail": "Attendance not found."}, status=HTTP_404_NOT_FOUND)
+    raise error
+
+
+@api_view(["GET", "POST"])
+@require_role("supervisor", "manager")
+def attendance_collection(request):
+    service = _attendance_service()
+    if service is None:
+        return Response(
+            {"detail": "Attendance service is not available."},
+            status=HTTP_501_NOT_IMPLEMENTED,
+        )
+    try:
+        if request.method == "GET":
+            entries = service.list_entries(
+                jalali_date=request.query_params.get("jalali_date"),
+                shift=request.query_params.get("shift"),
+            )
+            return Response([_attendance_response(entry) for entry in entries])
+        data = request.data if isinstance(request.data, dict) else {}
+        entry = service.create(
+            staff_uuid=data.get("staff_uuid"),
+            jalali_date=data.get("jalali_date"),
+            shift=data.get("shift"),
+            check_in_hour=data.get("check_in_hour"),
+            check_in_minute=data.get("check_in_minute"),
+            check_out_hour=data.get("check_out_hour"),
+            check_out_minute=data.get("check_out_minute"),
+            actor_role=request.user.role,
+        )
+        return Response(_attendance_response(entry), status=HTTP_201_CREATED)
+    except (ValueError, PermissionError, KeyError) as error:
+        return _attendance_error(error)
+
+
+@api_view(["POST"])
+@require_role("manager")
+def attendance_correction_preview(request, attendance_uuid):
+    service = _attendance_service()
+    if service is None:
+        return Response(status=HTTP_501_NOT_IMPLEMENTED)
+    try:
+        data = request.data if isinstance(request.data, dict) else {}
+        preview = service.preview_correction(
+            str(attendance_uuid),
+            changes=data.get("changes"),
+            delete=data.get("delete", False),
+            reason=data.get("reason"),
+            actor_role=request.user.role,
+        )
+        return Response(
+            {
+                "token": preview.token,
+                "action": preview.action,
+                "impact": list(preview.impact),
+            },
+            status=HTTP_200_OK,
+        )
+    except (ValueError, PermissionError, KeyError) as error:
+        return _attendance_error(error)
+
+
+@api_view(["POST"])
+@require_role("manager")
+def attendance_correction_confirm(request):
+    service = _attendance_service()
+    if service is None:
+        return Response(status=HTTP_501_NOT_IMPLEMENTED)
+    try:
+        data = request.data if isinstance(request.data, dict) else {}
+        result = service.confirm_correction(
+            data.get("token"), actor_role=request.user.role
+        )
+        return Response(
+            {
+                "action": result.action,
+                "entry": (
+                    _attendance_response(result.entry)
+                    if result.entry is not None
+                    else None
+                ),
+            },
+            status=HTTP_200_OK,
+        )
+    except (ValueError, PermissionError, KeyError) as error:
+        return _attendance_error(error)

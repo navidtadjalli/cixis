@@ -19,6 +19,9 @@ class RosterDomainTests(SimpleTestCase):
             encryption_key=b"e" * 32,
             blind_index_key=b"b" * 32,
             integrity_key=b"i" * 32,
+            manager_encryption_key=b"E" * 32,
+            manager_blind_index_key=b"B" * 32,
+            manager_integrity_key=b"I" * 32,
             key_generation=1,
         )
 

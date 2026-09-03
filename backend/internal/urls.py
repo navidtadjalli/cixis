@@ -14,4 +14,15 @@ urlpatterns = [
         views.roster_reactivate,
         name="internal-roster-reactivate",
     ),
+    path("attendance/", views.attendance_collection, name="internal-attendance"),
+    path(
+        "attendance/<uuid:attendance_uuid>/corrections/preview/",
+        views.attendance_correction_preview,
+        name="internal-attendance-correction-preview",
+    ),
+    path(
+        "attendance/corrections/confirm/",
+        views.attendance_correction_confirm,
+        name="internal-attendance-correction-confirm",
+    ),
 ]

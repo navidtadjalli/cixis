@@ -382,7 +382,7 @@ git commit -m "feat: add encrypted internal roster"
 - Produces `calculate_attendance`, `AttendanceService.create`, and preview/confirm correction APIs.
 - Consumes Task 6 staff/date rules and Task 4 role sessions.
 
-- [ ] **Step 1: Write failing metric, duplicate, role, and finalized-month tests**
+- [x] **Step 1: Write failing metric, duplicate, role, and finalized-month tests**
 
 ```python
 def test_evening_cross_midnight_reports_exact_metrics(self):
@@ -393,22 +393,22 @@ def test_equal_times_count_as_24_hours(self):
     self.assertEqual(calculate_attendance("morning", 9, 0, 9, 0).worked, 1440)
 ```
 
-- [ ] **Step 2: Run tests and observe missing attendance service failure**
+- [x] **Step 2: Run tests and observe missing attendance service failure**
 
 Run: `cd backend && DJANGO_SETTINGS_MODULE=internal_config.settings .venv/bin/python manage.py test internal.tests.test_attendance`
 
-- [ ] **Step 3: Implement integer-minute calculation and one-row-per-staff/date/shift persistence**
+- [x] **Step 3: Implement integer-minute calculation and one-row-per-staff/date/shift persistence**
 
 ```python
 SHIFT_START = {"morning": 9 * 60, "evening": 16 * 60}
 SHIFT_END = {"morning": 17 * 60, "evening": 24 * 60}
 ```
 
-- [ ] **Step 4: Verify all numeric bounds, both shifts, duplicate rejection, supervisor immutability, manager preview token conflict, audit append, and transaction rollback**
+- [x] **Step 4: Verify all numeric bounds, both shifts, duplicate rejection, supervisor immutability, manager preview token conflict, audit append, and transaction rollback**
 
 Run: `cd backend && DJANGO_SETTINGS_MODULE=internal_config.settings .venv/bin/python manage.py test internal.tests.test_attendance`
 
-- [ ] **Step 5: Commit attendance domain**
+- [x] **Step 5: Commit attendance domain**
 
 ```bash
 git add backend/internal
