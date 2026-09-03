@@ -9,8 +9,6 @@ from pathlib import Path
 
 from django.db import transaction
 
-from .models import AppSetting
-
 
 PASSWORD_SETTING_KEYS = {
     "supervisor": ("revenue_password", "password_generation_revenue"),
@@ -45,6 +43,8 @@ def compare_and_swap_password_setting(
     rejected before touching the database, keeping this module's write surface
     limited to the three specification-approved password rows and generations.
     """
+    from .models import AppSetting
+
     try:
         password_key, generation_key = PASSWORD_SETTING_KEYS[role]
     except KeyError as error:

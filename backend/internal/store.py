@@ -263,6 +263,41 @@ class InternalStore:
         self.verify_live_manifests()
         return self._decrypt(record)
 
+    def has_blind_index(
+        self, record_type: str, field_name: str, value: str
+    ) -> bool:
+        """Return whether one authenticated record carries an exact blind index."""
+        if not all(isinstance(item, str) and item for item in (record_type, field_name, value)):
+            raise ValueError("record type, blind-index field, and value must be nonempty strings")
+        self.verify_live_manifest(record_type)
+        all_records = self._connection.execute(
+            """
+            SELECT uuid, record_type, key_generation, revision, nonce, ciphertext
+            FROM internal_encrypted_records
+            WHERE record_type = ?
+            """,
+            (record_type,),
+        ).fetchall()
+        for record in all_records:
+            self._decrypt(EncryptedRecord(*record))
+        rows = self._connection.execute(
+            """
+            SELECT records.uuid, records.record_type, records.key_generation,
+                   records.revision, records.nonce, records.ciphertext
+            FROM internal_encrypted_records AS records
+            JOIN internal_blind_indexes AS indexes
+              ON indexes.record_uuid = records.uuid
+            WHERE records.record_type = ?
+              AND indexes.field_name = ?
+              AND indexes.value = ?
+            """,
+            (record_type, field_name, blind_index(key=self.blind_index_key, value=value)),
+        ).fetchall()
+        for row in rows:
+            self._decrypt(EncryptedRecord(*row))
+            return True
+        return False
+
     def _record_by_uuid(self, record_uuid: str) -> EncryptedRecord:
         row = self._connection.execute(
             """

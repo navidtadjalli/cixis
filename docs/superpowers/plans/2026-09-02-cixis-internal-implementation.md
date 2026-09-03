@@ -35,7 +35,7 @@
 - [x] Task 3 core: Implement role-separated keyring, password policy, and staged password-generation protocol.
 - [ ] Task 3 integration: Complete first-run provisioning only after Task 5 supplies idempotent roster import and Task 10 supplies verified initial backup.
 - [x] Task 4: Enforce channel/session authentication and role authorization.
-- [ ] Task 5: Implement CiXiS compatibility checks, read-only catalog access, and roster import.
+- [x] Task 5: Implement CiXiS compatibility checks, read-only catalog access, and roster import.
 - [ ] Task 6: Implement Jalali contract and encrypted roster domain.
 - [ ] Task 7: Implement attendance entry, calculations, and correction rules.
 - [ ] Task 8: Implement product snapshots, exact money, and allowance allocation.
@@ -75,8 +75,14 @@
   encodings of exactly 32 channel-secret bytes authenticate. Session revocation
   is immediate, while a failed shutdown callback raises a generic error and is
   retried until it succeeds rather than being silently suppressed.
-- Exact next action: continue Task 5 or Task 10, then wire deferred first-run
-  orchestration only after their real collaborators exist.
+- Task 5 is complete: profile validation fail-closes on missing/wrong,
+  fingerprint, paired-app-version, port, and legacy-table failures; catalog and
+  roster source connections are SQLite read-only; initial roster import is
+  installation/source-employee idempotent and preserves CiXiS rows exactly.
+  Import intentionally remains a standalone collaborator: Task 3 first-run
+  orchestration stays deferred until Task 10 supplies the verified backup.
+- Exact next action: continue Task 6, or complete Task 10 before wiring deferred
+  first-run orchestration.
 
 ## File Map
 
@@ -282,7 +288,7 @@ git commit -m "feat: secure internal channel sessions"
 - Produces `verify_cixis_profile`, `CatalogReader.active_products`, and `import_initial_roster` for provisioning and staff orders.
 - Consumes Task 1 profile rows/readonly bridge and Task 2 encrypted records.
 
-- [ ] **Step 1: Write failing fail-closed and idempotent-import tests**
+- [x] **Step 1: Write failing fail-closed and idempotent-import tests**
 
 ```python
 def test_import_is_idempotent_by_installation_and_source_employee_id(self):
@@ -294,11 +300,11 @@ def test_catalog_write_attempt_is_rejected(self):
     with self.assertRaises(sqlite3.OperationalError): self.catalog.connection.execute("DELETE FROM pos_product")
 ```
 
-- [ ] **Step 2: Run tests and confirm compatibility/import services are missing**
+- [x] **Step 2: Run tests and confirm compatibility/import services are missing**
 
 Run: `cd backend && DJANGO_SETTINGS_MODULE=internal_config.settings .venv/bin/python manage.py test internal.tests.test_compatibility internal.tests.test_importer`
 
-- [ ] **Step 3: Implement header, installation-ID, fingerprint, app-version, port, and legacy-table checks plus catalog snapshot reader**
+- [x] **Step 3: Implement header, installation-ID, fingerprint, app-version, port, and legacy-table checks plus catalog snapshot reader**
 
 ```python
 def verify_cixis_profile(profile: CixisProfile) -> None:
@@ -307,11 +313,11 @@ def verify_cixis_profile(profile: CixisProfile) -> None:
     require_empty_legacy_tracker_tables(profile.database_path)
 ```
 
-- [ ] **Step 4: Verify missing/moved/wrong/new/old/running CiXiS blocks startup and source employee/POS/menu rows never change**
+- [x] **Step 4: Verify missing/moved/wrong/new/old/running CiXiS blocks startup and source employee/POS/menu rows never change**
 
 Run: `cd backend && DJANGO_SETTINGS_MODULE=internal_config.settings .venv/bin/python manage.py test internal.tests.test_compatibility internal.tests.test_importer`
 
-- [ ] **Step 5: Commit compatibility and catalog bridge**
+- [x] **Step 5: Commit compatibility and catalog bridge**
 
 ```bash
 git add backend/internal backend/pos/internal_bridge.py
