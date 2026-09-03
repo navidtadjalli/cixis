@@ -36,7 +36,7 @@
 - [ ] Task 3 integration: Complete first-run provisioning only after Task 5 supplies idempotent roster import and Task 10 supplies verified initial backup.
 - [x] Task 4: Enforce channel/session authentication and role authorization.
 - [x] Task 5: Implement CiXiS compatibility checks, read-only catalog access, and roster import.
-- [ ] Task 6: Implement Jalali contract and encrypted roster domain.
+- [x] Task 6: Implement Jalali contract and encrypted roster domain.
 - [ ] Task 7: Implement attendance entry, calculations, and correction rules.
 - [ ] Task 8: Implement product snapshots, exact money, and allowance allocation.
 - [ ] Task 9: Implement advances, reports, corrections, finalization, and audit views.
@@ -81,7 +81,10 @@
   installation/source-employee idempotent and preserves CiXiS rows exactly.
   Import intentionally remains a standalone collaborator: Task 3 first-run
   orchestration stays deferred until Task 10 supplies the verified backup.
-- Exact next action: continue Task 6, or complete Task 10 before wiring deferred
+- Task 6 is complete: strict Persian/ASCII Jalali parsing, Tehran-date and
+  month-lock rules, encrypted revisioned roster CRUD, role enforcement,
+  active/inactive filtering, and frozen-snapshot isolation are implemented.
+- Exact next action: continue Task 7, or complete Task 10 before wiring deferred
   first-run orchestration.
 
 ## File Map
@@ -334,7 +337,7 @@ git commit -m "feat: validate cixis profile for internal app"
 - Produces `parse_jalali_date`, `parse_jalali_month`, `tehran_today`, `RosterService`, and roster APIs for Tasks 7–10.
 - Consumes authenticated manager/supervisor sessions and imported stable UUID identities.
 
-- [ ] **Step 1: Write failing Jalali and role tests**
+- [x] **Step 1: Write failing Jalali and role tests**
 
 ```python
 def test_persian_digits_normalize_and_real_leap_date_validates(self):
@@ -345,11 +348,11 @@ def test_supervisor_cannot_deactivate_roster_member(self):
     self.assertEqual(self.supervisor.delete(self.member_url).status_code, 403)
 ```
 
-- [ ] **Step 2: Run tests and confirm desired API is absent**
+- [x] **Step 2: Run tests and confirm desired API is absent**
 
 Run: `cd backend && DJANGO_SETTINGS_MODULE=internal_config.settings .venv/bin/python manage.py test internal.tests.test_jalali internal.tests.test_roster`
 
-- [ ] **Step 3: Implement calendar parser and encrypted roster CRUD**
+- [x] **Step 3: Implement calendar parser and encrypted roster CRUD**
 
 ```python
 def assert_mutable_business_date(value: str, finalized_months: FinalizedMonths) -> str:
@@ -358,11 +361,11 @@ def assert_mutable_business_date(value: str, finalized_months: FinalizedMonths) 
     return normalized
 ```
 
-- [ ] **Step 4: Verify sort/filter, add/edit rights, manager-only soft deletion/reactivation, name updates for open data, and frozen snapshots remain untouched**
+- [x] **Step 4: Verify sort/filter, add/edit rights, manager-only soft deletion/reactivation, name updates for open data, and frozen snapshots remain untouched**
 
 Run: `cd backend && DJANGO_SETTINGS_MODULE=internal_config.settings .venv/bin/python manage.py test internal.tests.test_jalali internal.tests.test_roster`
 
-- [ ] **Step 5: Commit Jalali and roster behavior**
+- [x] **Step 5: Commit Jalali and roster behavior**
 
 ```bash
 git add backend/internal

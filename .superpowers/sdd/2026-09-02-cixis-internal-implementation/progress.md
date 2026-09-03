@@ -55,3 +55,9 @@ source employee by installation plus source ID, authenticates existing blind
 indexes before reuse, and leaves a full CiXiS SQLite schema/row snapshot
 unchanged. First-run provisioning is still deferred: Task 10 must supply the
 real verified backup before import is wired into a successful provision path.
+Task 6: complete — canonical Jalali date/month parsing validates real leap
+dates and Tehran boundaries; encrypted roster CRUD preserves stable UUIDs,
+revision-binds updates, sorts/filters active state, and enforces manager-only
+deactivation/reactivation. Domain writes authenticate all existing encrypted
+records before manifest replacement, preventing mutation from concealing prior
+ciphertext or blind-index tampering. Fresh `internal.tests`: 65 passed.

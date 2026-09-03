@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from contextlib import contextmanager
 import hmac
 import json
 from pathlib import Path
@@ -141,7 +142,8 @@ class InternalStore:
         for field_name in index_fields:
             if not isinstance(payload.get(field_name), str):
                 raise ValueError("blind indexes require string payload fields")
-        with self._connection:
+        with self._immediate_transaction():
+            self._verify_all_records()
             nonce = self._fresh_nonce()
             encrypted = _encrypt_payload_with_nonce(
                 key=self.encryption_key,
@@ -185,6 +187,94 @@ class InternalStore:
         return EncryptedRecord(
             uuid=record_uuid,
             record_type=record_type,
+            key_generation=self.key_generation,
+            revision=revision,
+            nonce=encrypted.nonce,
+            ciphertext=encrypted.ciphertext,
+        )
+
+    def list_records(
+        self, record_type: str
+    ) -> tuple[tuple[EncryptedRecord, dict[str, Any]], ...]:
+        """Return every authenticated record and decrypted payload in one domain."""
+        self.verify_live_manifests()
+        rows = self._connection.execute(
+            """
+            SELECT uuid, record_type, key_generation, revision, nonce, ciphertext
+            FROM internal_encrypted_records
+            WHERE record_type = ?
+            ORDER BY uuid
+            """,
+            (record_type,),
+        ).fetchall()
+        records = tuple(EncryptedRecord(*row) for row in rows)
+        return tuple((record, self._decrypt(record)) for record in records)
+
+    def update(
+        self,
+        record_uuid: str,
+        payload: Mapping[str, Any],
+        *,
+        blind_index_fields: Iterable[str] = (),
+        expected_revision: int | None = None,
+    ) -> EncryptedRecord:
+        """Replace one encrypted payload at its next authenticated revision."""
+        index_fields = tuple(sorted(set(blind_index_fields)))
+        for field_name in index_fields:
+            if not isinstance(payload.get(field_name), str):
+                raise ValueError("blind indexes require string payload fields")
+        with self._immediate_transaction():
+            self._verify_all_records()
+            current = self._record_by_uuid(record_uuid)
+            if expected_revision is not None and current.revision != expected_revision:
+                raise IntegrityError("record revision does not match the expected revision")
+            revision = current.revision + 1
+            nonce = self._fresh_nonce()
+            encrypted = _encrypt_payload_with_nonce(
+                key=self.encryption_key,
+                aad=self._aad(record_uuid, current.record_type, revision),
+                payload={
+                    "payload": dict(payload),
+                    "blind_index_fields": list(index_fields),
+                },
+                nonce=nonce,
+            )
+            self._connection.execute(
+                """
+                UPDATE internal_encrypted_records
+                SET key_generation = ?, revision = ?, nonce = ?, ciphertext = ?
+                WHERE uuid = ?
+                """,
+                (
+                    self.key_generation,
+                    revision,
+                    encrypted.nonce,
+                    encrypted.ciphertext,
+                    record_uuid,
+                ),
+            )
+            self._connection.execute(
+                "DELETE FROM internal_blind_indexes WHERE record_uuid = ?",
+                (record_uuid,),
+            )
+            self._connection.executemany(
+                """
+                INSERT INTO internal_blind_indexes (record_uuid, field_name, value)
+                VALUES (?, ?, ?)
+                """,
+                [
+                    (
+                        record_uuid,
+                        field_name,
+                        blind_index(key=self.blind_index_key, value=payload[field_name]),
+                    )
+                    for field_name in index_fields
+                ],
+            )
+            self._write_live_manifest(current.record_type)
+        return EncryptedRecord(
+            uuid=record_uuid,
+            record_type=current.record_type,
             key_generation=self.key_generation,
             revision=revision,
             nonce=encrypted.nonce,
@@ -309,6 +399,29 @@ class InternalStore:
         if row is None:
             raise KeyError(record_uuid)
         return EncryptedRecord(*row)
+
+    def _verify_all_records(self) -> None:
+        self.verify_live_manifests()
+        rows = self._connection.execute(
+            """
+            SELECT uuid, record_type, key_generation, revision, nonce, ciphertext
+            FROM internal_encrypted_records
+            ORDER BY uuid
+            """
+        ).fetchall()
+        for row in rows:
+            self._decrypt(EncryptedRecord(*row))
+
+    @contextmanager
+    def _immediate_transaction(self):
+        self._connection.execute("BEGIN IMMEDIATE")
+        try:
+            yield
+        except Exception:
+            self._connection.rollback()
+            raise
+        else:
+            self._connection.commit()
 
     def _decrypt(self, record: EncryptedRecord) -> dict[str, Any]:
         if record.key_generation != self.key_generation:

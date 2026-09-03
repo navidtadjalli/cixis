@@ -6,6 +6,58 @@ from django.test import SimpleTestCase
 
 
 class InternalStoreTests(SimpleTestCase):
+    def test_create_rejects_existing_ciphertext_tamper_before_rewriting_manifest(self):
+        """Breaks if adding a row can conceal corruption of an existing record."""
+        from cryptography.exceptions import InvalidTag
+
+        from internal.store import InternalStore
+
+        with TemporaryDirectory() as temporary_directory:
+            database_path = Path(temporary_directory) / "internal.sqlite3"
+            store = InternalStore(
+                internal_root=database_path.parent,
+                installation_id="c3e29c3e-e3e6-4a47-bb42-a07269bec0d4",
+                encryption_key=bytes(range(32)),
+                blind_index_key=b"b" * 32,
+                integrity_key=b"i" * 32,
+                key_generation=1,
+            )
+            record = store.create("roster", {"name": "آرش"})
+            with sqlite3.connect(database_path) as connection:
+                connection.execute(
+                    "UPDATE internal_encrypted_records SET ciphertext = ? WHERE uuid = ?",
+                    (record.ciphertext[:-1] + b"x", record.uuid),
+                )
+
+            with self.assertRaises(InvalidTag):
+                store.create("roster", {"name": "بردیا"})
+
+    def test_update_rejects_ciphertext_tamper_before_rewriting_record(self):
+        """Breaks if an update overwrites and conceals a corrupted ciphertext."""
+        from cryptography.exceptions import InvalidTag
+
+        from internal.store import InternalStore
+
+        with TemporaryDirectory() as temporary_directory:
+            database_path = Path(temporary_directory) / "internal.sqlite3"
+            store = InternalStore(
+                internal_root=database_path.parent,
+                installation_id="c3e29c3e-e3e6-4a47-bb42-a07269bec0d4",
+                encryption_key=bytes(range(32)),
+                blind_index_key=b"b" * 32,
+                integrity_key=b"i" * 32,
+                key_generation=1,
+            )
+            record = store.create("roster", {"name": "آرش"})
+            with sqlite3.connect(database_path) as connection:
+                connection.execute(
+                    "UPDATE internal_encrypted_records SET ciphertext = ? WHERE uuid = ?",
+                    (record.ciphertext[:-1] + b"x", record.uuid),
+                )
+
+            with self.assertRaises(InvalidTag):
+                store.update(record.uuid, {"name": "بردیا"})
+
     def test_persists_and_loads_an_encrypted_record(self):
         """Breaks if records are not durably encrypted in the internal store."""
         from internal.store import InternalStore
